@@ -1,0 +1,11 @@
+@startuml
+
+client -> stockPriceMicrosercice: Send Http request to get stock or stocks
+create processJSONAPI
+stockPriceMicrosercice -> processJSONAPI : get stock or stocks
+processJSONAPI -> stockPriceMicrosercice : return stock or stocks
+destroy processJSONAPI
+client <- stockPriceMicrosercice : return stock or stocks
+destroy stockPriceMicrosercice
+
+@enduml
