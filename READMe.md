@@ -2,6 +2,10 @@ Stock Ticker Get Close Price and Open Price
 
 Clone Repo
 
+Install Node on your computer. You can check if installed with command prompt: node -v
+
+Open terminal at root of folder: npm install express
+
 Search 'const outputFilePath' you will find the file in backend-microservice.js,
  change file path to a local CSV, this will be written to, in order to save state.
 
