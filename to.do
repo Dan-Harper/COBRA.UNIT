@@ -88,3 +88,13 @@ After training and backtesting, your model should be capable of making predictio
     Run the preprocessed data through your trained model.
     The model should output buy/sell/hold signals for the stocks based on your threshold criteria.
 
+
+Create signup for emails, and email list.
+
+Build infrastructure that tracks when users lasted used the service, we want an email to be sent every two weeks per email list.
+
+From email list, will send updates for the service
+
+Build an infrastructure that allows for A/B testing of users!
+   Like Duolingo
+   It is alright to launch A/B testing that fails, the majority will fail, and this is alright.

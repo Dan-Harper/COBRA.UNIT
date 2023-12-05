@@ -4,7 +4,7 @@ const commands = [
   // Start the Next.js (frontend) application
   { name: 'frontend', command: 'npm run start', prefixColor: 'cyan' },
   // Start the backend microservice
-  { name: 'backend', command: 'node app/backendmicroservice/backend-microservice.tsx', prefixColor: 'magenta' },
+  { name: 'backend', command: 'node app/backendmicroservice/backend-microservice.js', prefixColor: 'magenta' },
 ];
 
 concurrently(commands, {

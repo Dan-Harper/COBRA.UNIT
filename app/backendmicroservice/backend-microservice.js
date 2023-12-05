@@ -1,13 +1,32 @@
-// Import necessary modules
 const express = require('express');
 const bodyParser = require('body-parser');
+const cors = require('cors');
 const fs = require('fs');
 
-// Create an Express app
 const app = express();
 
-// Use bodyParser middleware to parse JSON requests
+app.use(cors());
+
 app.use(bodyParser.json());
+
+const getFetch = async () => {
+    const { default: fetch } = await import('node-fetch');
+    return fetch;
+};
+
+const getExchangeRate = async (origin, destination) => {
+    try {
+        const response = await fetch(`http://127.0.0.1:5000/get_exchange_rate?origin=${origin}&destination=${destination}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        return data.result; // Assuming the API returns JSON with a 'result' field for the exchange rate
+    } catch (error) {
+        console.error("Error fetching exchange rate:", error);
+        return null;
+    }
+};
 
 const fetchStockData = async (stock) => {
 
@@ -138,17 +157,46 @@ app.post('/api/processJSON', async (req, res) => {
         outputData = fetchedStockData.filter(data => data != null);
 
         const outputFilePath = 'C:/Users/Wanderer/Documents/OSU to STANFORD/CS361/CS-361/pqrOutput.csv';
-        fs.writeFileSync(outputFilePath, Object.keys(headers).join(',') + '\n', { flag: 'w' });
+        const exchangeRate = await getExchangeRate('USD', 'COP');
+        if (!exchangeRate) {
+            throw new Error('Failed to fetch exchange rate');
+        }
 
+        // Write 'Values in dollars' header
+        fs.writeFileSync(outputFilePath, 'Values in dollars\n', { flag: 'w' });
+        fs.writeFileSync(outputFilePath, Object.keys(headers).join(',') + '\n', { flag: 'a' });
+
+        // Write stock data in USD
         for (const rowData of outputData) {
             const row = Object.keys(headers).map(header => rowData[header] || '').join(',');
             fs.writeFileSync(outputFilePath, `${row}\n`, { flag: 'a' });
         }
 
-        res.json({ message: 'Request processed successfully', data: outputData });
+        // Write 3 empty rows
+        fs.writeFileSync(outputFilePath, '\n\n\n', { flag: 'a' });
+
+        // Write 'Values in COP' header
+        fs.writeFileSync(outputFilePath, 'Values in COP\n', { flag: 'a' });
+        fs.writeFileSync(outputFilePath, Object.keys(headers).join(',') + '\n', { flag: 'a' });
+
+        // Convert and write stock data in COP
+        for (const rowData of outputData) {
+            const convertedRow = Object.keys(headers).map(header => {
+                // Apply conversion rate only to specific columns
+                if (!["todaysChangePerc", "prevDay.vw", "prevDay.v", "min.v", "min.t", "min.n", "min.av", "lastTrade.x", "lastTrade.t", "lastTrade.s", "lastTrade.i", "lastTrade.c", "lastQuote.t", "lastSize.s", "day.v"].includes(header)) {
+                    return (rowData[header] * exchangeRate).toFixed(2);
+                } else {
+                    return rowData[header] || '';
+                }
+            }).join(',');
+            fs.writeFileSync(outputFilePath, `${convertedRow}\n`, { flag: 'a' });
+        }
+        const csvData = fs.readFileSync(outputFilePath, 'utf8');
+
+        res.json({ csvData });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).send('Internal server error');
     }
 });
 

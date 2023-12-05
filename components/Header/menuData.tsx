@@ -93,7 +93,7 @@ const menuData: Menu[] = [
       {
         id: 51,
         title: "Back Page",
-        path: "/backend-microservice",
+        path: "/backendmicroservice",
         newTab: false,
       }
     ],
