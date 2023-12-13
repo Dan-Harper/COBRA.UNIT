@@ -9,19 +9,15 @@ app.use(cors());
 
 app.use(bodyParser.json());
 
-const getFetch = async () => {
-    const { default: fetch } = await import('node-fetch');
-    return fetch;
-};
-
 const getExchangeRate = async (origin, destination) => {
     try {
-        const response = await fetch(`http://127.0.0.1:5000/get_exchange_rate?origin=${origin}&destination=${destination}`);
+        const response = await fetch
+            (`http://127.0.0.1:5000/get_exchange_rate?origin=${origin}&destination=${destination}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
-        return data.result; // Assuming the API returns JSON with a 'result' field for the exchange rate
+        return data.result;
     } catch (error) {
         console.error("Error fetching exchange rate:", error);
         return null;
@@ -97,16 +93,15 @@ const fetchStockData = async (stock) => {
 };
 
 
-// Define an API endpoint to process JSON data
+
 app.post('/api/processJSON', async (req, res) => {
     try {
-        // Extract requestData from the request body
+
         const requestData = req.body;
-
-        // Continue with your existing logic
         const stocks = requestData.stocks.split(',').map(stock => stock.trim().toUpperCase());
-
-        // Initialize outputData array
+        
+        const inputCurrency = requestData.currency || 'COP';
+    
         let outputData = [];
         
         const headers = {
@@ -156,30 +151,26 @@ app.post('/api/processJSON', async (req, res) => {
 
         outputData = fetchedStockData.filter(data => data != null);
 
-        const outputFilePath = 'C:/Users/Wanderer/Documents/OSU to STANFORD/CS361/CS-361/pqrOutput.csv';
-        const exchangeRate = await getExchangeRate('USD', 'COP');
+        const outputFilePath = 'C:/Users/Wanderer/Documents/OSU to GT to STANFORD/CS361/CS-361/pqrOutput.csv';
+        const exchangeRate = await getExchangeRate('USD', inputCurrency);
+        
         if (!exchangeRate) {
             throw new Error('Failed to fetch exchange rate');
         }
 
-        // Write 'Values in dollars' header
         fs.writeFileSync(outputFilePath, 'Values in dollars\n', { flag: 'w' });
         fs.writeFileSync(outputFilePath, Object.keys(headers).join(',') + '\n', { flag: 'a' });
 
-        // Write stock data in USD
         for (const rowData of outputData) {
             const row = Object.keys(headers).map(header => rowData[header] || '').join(',');
             fs.writeFileSync(outputFilePath, `${row}\n`, { flag: 'a' });
         }
 
-        // Write 3 empty rows
         fs.writeFileSync(outputFilePath, '\n\n\n', { flag: 'a' });
 
-        // Write 'Values in COP' header
         fs.writeFileSync(outputFilePath, 'Values in COP\n', { flag: 'a' });
         fs.writeFileSync(outputFilePath, Object.keys(headers).join(',') + '\n', { flag: 'a' });
 
-        // Convert and write stock data in COP
         for (const rowData of outputData) {
             const convertedRow = Object.keys(headers).map(header => {
                 // Apply conversion rate only to specific columns
