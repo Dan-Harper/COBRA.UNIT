@@ -1,59 +1,59 @@
+
+
 Gross Margin = Gross Profit / Revenue
-    Check 40% or higher
-
-
+Rule: Check 40% or higher
 
 Net Profit Margin = (revenue - cost) / revenue 
- Check 20% or higher
+Rule: Check 20% or higher
 Great companies convert 20% or more of their revenue into net income.
 
 
+
 SG&A Margin = SG&A Expense / Gross Profit
-    check 30% or lower
+Rule: check 30% or lower
 
 R&D = R&D Expense / Gross Profit
-    Check 30% or lower 
+Rule: Check 30% or lower 
 
 Depreciation Margin = Depreciation / Gross Profit
-    check 10% or lower
+Rule: check 10% or lower
 Logic: Buffett doesn't like businesses that need to invest in depreciating assets to maintain their competitive advantage.
 
 Interest Expense Margin = Interest Expense / Operating Income
- check 15% or lower
- Great businesses don’t need debt to finance themselves.
+Rule: check 15% or lower
+Great businesses don’t need debt to finance themselves.
 
 Income Tax Expenses = Taxes Paid / Pre-Tax Income
-    Current Corporate Tax Rate
+Rule: Current Corporate Tax Rate
 Great businesses are so profitable that they are forced to pay their full tax load.
 
 Earnings Per Share Growth = Year 2 EPS / Year 1 EPS
-👍 Rule: Positive & Growing
+Rule: Positive & Growing
 Great companies increase profits every year.
 
-⚖ BALANCE SHEET:
+BALANCE SHEET:
 Cash & Debt = Cash > Debt
-👍 Rule: More cash than debt
+Rule: More cash than debt
 Great companies don't need debt to fund themselves.
 Great companies generate lots of cash without needing much debt.
 
-11: Adjusted Debt to Equity= Total Liabilities / Shareholder Equity + Treasury Stock
-👍 Rule : < 0.80
-Great companies finance themselves with equity.
-
-13: Retained Earnings
-🧮 Equation: Year 1 / Year 2
-👍 Rule: Consistent growth
+Retained Earnings
+Equation: Year 1 / Year 2
+Rule: Consistent growth
 Great companies grow retained earnings each year.
 
-💸 CASH FLOW STATEMENT:
-15: Capex Margin = Capex / Net Income
-👍 Rule: <25%
+CASH FLOW STATEMENT:
+Capex Margin = Capex / Net Income
+Rule: <25%
 Great companies don't need much equipment to generate profits.
 
 Create program for CSV approach calling 
   to API then filtering within CSV file
 
-
+Chris's idea in repository, to track the stocks from each weeks
+   only from the first week the stock showed up on the radar,
+   track the performance each week from initial price to the price of that week
+   
 
 
 Business Plan Template:
@@ -98,3 +98,15 @@ From email list, will send updates for the service
 Build an infrastructure that allows for A/B testing of users!
    Like Duolingo
    It is alright to launch A/B testing that fails, the majority will fail, and this is alright.
+
+
+
+
+Invite everyone we know who works in finance and who we want to recruit
+    to Friday night events, give product to user, give phone number,
+     ask if they have feedback on the product to text us, and I will text them asking for feedback 
+     on the product
+
+Plaid pitched to 100 VCs
+
+VCs take startups more serious if you already are in the Silicon Valley and pitching
