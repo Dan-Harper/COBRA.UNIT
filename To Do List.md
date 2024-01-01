@@ -1,5 +1,8 @@
 # COBRA.UNIT
 
+(Arya) Learn and contribute to setting up the AWS for all of the tickers information
+(Arya) Research for some ideas on how to optimize the portfolio
+
 (Dan) Add logos to a folder in this project
 
 (DAN) Add DB info from previous project GitHub
