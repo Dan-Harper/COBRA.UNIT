@@ -111,6 +111,8 @@ app.post('/api/processJSON', async (req, res) => {
                         headers.add(key);
                     });
                 });
+            } else {
+                console.log(`Financials not available for a stock, skipping header generation for this stock.`);
             }
         });
 
@@ -175,7 +177,7 @@ app.post('/api/processJSON', async (req, res) => {
         
 
         // Write the CSV content to a file
-        const outputFilePath = 'C:/Users/Wanderer/Documents/OSU to GT to STANFORD/CS361/CS-361/pqrOutput.csv';
+        const outputFilePath = 'C:/Users/Wanderer/Documents/OSU to GT to STANFORD/CS361/CS-361/!README/pqrOutput.csv';
         fs.writeFileSync(outputFilePath, csvContent);
         const csvData = fs.readFileSync(outputFilePath, 'utf8');
         res.json({ csvData });

@@ -7,8 +7,6 @@ Net Profit Margin = (revenue - cost) / revenue
 Rule: Check 20% or higher
 Great companies convert 20% or more of their revenue into net income.
 
-
-
 SG&A Margin = SG&A Expense / Gross Profit
 Rule: check 30% or lower
 
@@ -110,3 +108,7 @@ Invite everyone we know who works in finance and who we want to recruit
 Plaid pitched to 100 VCs
 
 VCs take startups more serious if you already are in the Silicon Valley and pitching
+
+
+Implement: 
+https://www.investopedia.com/terms/b/blackscholes.asp

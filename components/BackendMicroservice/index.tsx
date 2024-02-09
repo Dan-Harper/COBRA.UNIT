@@ -72,7 +72,7 @@ const BackendMicroservicePage = () => {
     return allData;
   };
   
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const response = await fetch('http://localhost:5001/api/processJSON', {
