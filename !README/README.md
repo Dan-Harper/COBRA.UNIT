@@ -11,7 +11,7 @@ Search 'const outputFilePath' you will find the file in backend-microservice.js,
 
 Open terminal from root folder file.
   npm run build
-  npm start-dev
+  npm run start-dev
 
 Open browser.
 

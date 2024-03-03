@@ -86,8 +86,9 @@ app.post('/api/processJSON', async (req, res) => {
         let headers = new Set(["Ticker"]);
 
         let calculatedHeaders = [
+            "stockPrice",
+            "totalShares",
             "grossMargin",
-            "netProfit",
             "netProfitMargin",
             "peRatio",
             "pbRatio",
@@ -133,51 +134,59 @@ app.post('/api/processJSON', async (req, res) => {
             "cashAndDebtCheck"
         ];
 
-        let csvHeaders = Array.from(headers).concat(calculatedHeaders).concat(passFailHeaders);
+        let csvHeaders = Array.from(headers).concat(calculatedHeaders).concat(passFailHeaders).concat(['totalPasses']);        
         let csvContent = csvHeaders.join(',') + '\n';
         
         // Process each stock's data
         fetchedStockData.forEach(data => {
-            if (data && data.tickers && data.tickers.length > 0) {
-                let ticker = data.tickers[0]; // First ticker
-        
-                const financialMetrics = calculateFinancials(data.financials, data.stock_price, data.total_shares);
-                console.log(`Financial metrics for ${ticker}:`, financialMetrics);
-        
+            if (data) {
+                const ticker = data.ticker || 'N/A'; // Adjust based on actual data structure
                 let rowData = [ticker]; // Start row with ticker
+        
+                // Calculate financial metrics
+                const financialMetrics = calculateFinancials(data.financials, data.stock_price, data.total_shares);
+        
+                // Manually handle stockPrice and totalShares
+                rowData.push(data.stock_price !== undefined ? data.stock_price : 'N/A');
+                rowData.push(data.total_shares !== undefined ? data.total_shares : 'N/A');
         
                 // Append financial data for each header
                 csvHeaders.forEach(header => {
-                    if (header === 'Ticker') {
-                        // Already added ticker
-                    } else if (header in financialMetrics) {
-                        rowData.push(financialMetrics[header] !== undefined ? financialMetrics[header] : 'N/A');
-                    } else if (header in financialMetrics.passFailResults) {
-                        // Ensure pass/fail results are included
-                        rowData.push(financialMetrics.passFailResults[header]);
+                    if (header === 'Ticker' || header === 'stockPrice' || header === 'totalShares') {
+                        // These have been already handled
+                    } else if (financialMetrics[header] !== undefined) {
+                        rowData.push(financialMetrics[header]);
+                    } else if (passFailHeaders.includes(header)) {
+                        // New condition to handle pass/fail check results
+                        // Directly append the result of the check from the passFailResults object
+                        const checkResult = financialMetrics.passFailResults[header];
+                        rowData.push(checkResult !== undefined ? checkResult : 'N/A');
                     } else {
-                        // Find the value in financial data or default to 'N/A'
+                        // Attempt to find the value in financial data or default to 'N/A'
                         let value = 'N/A';
                         ['balance_sheet', 'income_statement', 'cash_flow_statement', 'comprehensive_income'].forEach(section => {
-                            if (data.financials && data.financials[section] && header in data.financials[section]) {
-                                value = data.financials[section][header].value;
+                            if (data.financials && data.financials[section] && data.financials[section][header]) {
+                                // Assume each property might be an object with a 'value' key or a direct numeric/string value
+                                const fieldValue = data.financials[section][header].hasOwnProperty('value') ? data.financials[section][header].value : data.financials[section][header];
+                                if (fieldValue !== undefined) {
+                                    value = fieldValue;
+                                }
                             }
                         });
                         rowData.push(value);
                     }
                 });
-        
-                console.log(`Row data for ${ticker}:`, rowData);
+                console.log(`Row data for ${ticker}:`, rowData.join(','));
                 csvContent += rowData.join(',') + '\n';
             } else {
-                console.log(`No ticker data available for one of the stocks.`);
+                console.log(`No data available for one of the stocks.`);
             }
         });
     
         
 
         // Write the CSV content to a file
-        const outputFilePath = 'C:/Users/Wanderer/Documents/OSU to GT to STANFORD/CS361/CS-361/!README/pqrOutput.csv';
+        const outputFilePath = 'C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/!README/pqrOutput.csv';
         fs.writeFileSync(outputFilePath, csvContent);
         const csvData = fs.readFileSync(outputFilePath, 'utf8');
         res.json({ csvData });
@@ -188,7 +197,7 @@ app.post('/api/processJSON', async (req, res) => {
 });
 
 
-function calculateFinancials(financials, stock_price, totalShares) {
+function calculateFinancials(financials, stockPrice, totalShares) {
     
     console.log("Financial data received:", financials);
 
@@ -200,7 +209,6 @@ function calculateFinancials(financials, stock_price, totalShares) {
 
     const grossProfit = getNestedValue(['income_statement', 'gross_profit', 'value'], financials);
     const revenues = getNestedValue(['income_statement', 'revenues', 'value'], financials);
-    const costsAndExpenses = getNestedValue(['income_statement', 'costs_and_expenses', 'value'], financials);
     const netIncomeLoss = getNestedValue(['income_statement', 'net_income_loss', 'value'], financials);
     const dilutedEarningsPerShare = getNestedValue(['income_statement', 'diluted_earnings_per_share', 'value'], financials);
     const totalAssets = getNestedValue(['balance_sheet', 'assets', 'value'], financials);
@@ -208,31 +216,36 @@ function calculateFinancials(financials, stock_price, totalShares) {
     const totalLiabilities = getNestedValue(['balance_sheet', 'liabilities', 'value'], financials);    
     const currentAssets = getNestedValue(['balance_sheet', 'current_assets', 'value'], financials);
     const currentLiabilities = getNestedValue(['balance_sheet', 'current_liabilities', 'value'], financials);
-    const noncurrent_liabilities = getNestedValue(['balance_sheet', 'noncurrent_liabilities', 'value'], financials);
-    const debt = currentLiabilities / noncurrent_liabilities;
-    const operating_income_loss = getNestedValue(['income_statement', 'operating_income_loss', 'value'], financials);
+    // remove this if debt to equity is fixed const debt = currentLiabilities / noncurrent_liabilities;
+    const costsAndExpenses = getNestedValue(['income_statement', 'costs_and_expenses', 'value'], financials);
     const research_and_development = getNestedValue(['income_statement', 'research_and_development', 'value'], financials);
     const cash = getNestedValue(['balance_sheet', 'cash', 'value'], financials);
     const income_tax_expense_benefit = getNestedValue(['income_statement', 'income_tax_expense_benefit', 'value'], financials);
     const income_loss_from_continuing_operations_before_tax = getNestedValue(['income_statement', 'income_loss_from_continuing_operations_before_tax', 'value'], financials);
 
+    // is this correct?
+    const longTermDebt = getNestedValue(['balance_sheet', 'long_term_debt', 'value'], financials);
+
     const grossMargin = revenues > 0 ? grossProfit / revenues : 0;
-    const netProfit = grossProfit - costsAndExpenses;
-    const netProfitMargin = revenues > 0 ? netProfit / revenues * 100 : 0;
-    const peRatio = dilutedEarningsPerShare > 0 ? stock_price / dilutedEarningsPerShare : 0;
-    const pbRatio = totalEquity > 0 ? stock_price / (totalEquity / totalShares) : 0;
+    const netProfitMargin = (netIncomeLoss / revenues) * 100;
+    const peRatio = dilutedEarningsPerShare > 0 ? stockPrice / dilutedEarningsPerShare : 0;
+    const totalShareHolderEquity = totalAssets - totalLiabilities;
+    // may need to add preferred equity calculation if it exists here in order to refine book value per share calculation
+    const bookValuePerShare = totalShareHolderEquity / totalShares;
+    const pbRatio = stockPrice / bookValuePerShare;
     const peTimesPbRatio = peRatio * pbRatio;
-    const debtToEquity = totalEquity > 0 ? debt / totalEquity : 0;
-    const marketCap = totalShares * stock_price;
+    const debtToEquity = totalEquity > 0 ? totalLiabilities / totalEquity : 0;
+    const marketCap = totalShares * stockPrice;
     const currentRatio = currentLiabilities > 0 ? currentAssets / currentLiabilities : 0;
     const ROA = totalAssets > 0 ? netIncomeLoss / totalAssets * 100 : 0;
     const ROE = totalEquity > 0 ? netIncomeLoss / totalEquity * 100 : 0;
     const ROIC = (totalEquity + totalLiabilities) > 0 ? netIncomeLoss / (totalEquity + totalLiabilities) * 100 : 0;
-    const SGnA = grossProfit - operating_income_loss;
+    const SGnA = grossProfit - costsAndExpenses;
     const SGnAMargin = (SGnA / revenues) * 100;
     const researchAndDevelopment = (research_and_development / grossProfit) * 100;
-    const incomeTaxExpenses = (income_tax_expense_benefit / income_loss_from_continuing_operations_before_tax) * 100;
-    const cashAndDebt = cash > debt ? 'Pass' : 'Fail';
+    const incomeTaxExpenses = (income_tax_expense_benefit - income_loss_from_continuing_operations_before_tax) * 100;
+    const cashAndDebt = cash > longTermDebt ? 1 : 0;
+    // above calculations have been confirmed correct
 
     // Pass/Fail checks
     const passFailResults = {
@@ -249,19 +262,17 @@ function calculateFinancials(financials, stock_price, totalShares) {
         SGnAMarginCheck: SGnAMargin < 30 ? 1 : 0,
         researchAndDevelopmentCheck: researchAndDevelopment <= 30 ? 1 : 0,
         incomeTaxExpensesCheck: incomeTaxExpenses > 17 ? 1 : 0,
-        cashAndDebtCheck: cashAndDebt === 'Pass' ? 1 : 0
+        cashAndDebtCheck: cashAndDebt
     };
 
     const totalPasses = Object.values(passFailResults).reduce((sum, value) => sum + value, 0);
 
     return {
         grossMargin,
-        netProfit,
         netProfitMargin,
         peRatio,
         pbRatio,
         peTimesPbRatio,
-        debt,
         debtToEquity,
         marketCap,
         currentRatio,
