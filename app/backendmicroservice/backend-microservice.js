@@ -17,7 +17,11 @@ const fetchStockData = async (stockTicker) => {
         const response = await fetch(stockApiEndpoint);
         const data = await response.json();
         console.log("API Response for", stockTicker, ":", data);
-        return data.results && data.results.length > 0 ? data.results[0] : null;
+
+        if (data.results && data.results.length > 0) {
+            const resultWithTicker = {...data.results[0], stockTicker: stockTicker};
+            return resultWithTicker;
+        }
     } catch (error) {
         console.error("Error fetching stock data:", error);
         return null;
@@ -48,7 +52,7 @@ const fetchTotalShares = async (stockTicker) => {
     try {
         const response = await fetch(tickerDetailsEndpoint);
         const data = await response.json();
-        return data.results ? data.results.share_class_shares_outstanding : null;
+        return data.results ? data.results.weighted_shares_outstanding : null;
     } catch (error) {
         console.error("Error fetching total shares:", error);
         return null;
@@ -65,6 +69,7 @@ app.post('/api/processJSON', async (req, res) => {
         const stockDataPromises = stocks.map(async (stock) => {
             const stockData = await fetchStockData(stock);
             console.log(`Fetched stock data for ${stock}:`, stockData);
+            console.log(`Stock ticker data for ${stock}:`, stockData.stockTicker)
 
             const stockPrice = await fetchStockPrice(stock);
             console.log(`Stock price for ${stock}:`, stockPrice);
@@ -98,13 +103,12 @@ app.post('/api/processJSON', async (req, res) => {
             "ROA",
             "ROE",
             "ROIC",
-            "SGnAMargin",
             "researchAndDevelopment",
             "incomeTaxExpenses",
             "cashAndDebt"
         ];
 
-        // Generate headers from the fetched data
+        // Generate headers from the fetched data for dynamic financial data
         fetchedStockData.forEach(data => {
             if (data && data.financials) {
                 Object.keys(data.financials).forEach(section => {
@@ -128,32 +132,30 @@ app.post('/api/processJSON', async (req, res) => {
             "ROACheck",
             "ROECheck",
             "ROICCheck",
-            "SGnAMarginCheck",
             "researchAndDevelopmentCheck",
             "incomeTaxExpensesCheck",
             "cashAndDebtCheck"
         ];
 
-        let csvHeaders = Array.from(headers).concat(calculatedHeaders).concat(passFailHeaders).concat(['totalPasses']);        
+        let csvHeaders = Array.from(headers).concat(calculatedHeaders).concat(passFailHeaders).concat(['totalPasses']);
         let csvContent = csvHeaders.join(',') + '\n';
         
         // Process each stock's data
         fetchedStockData.forEach(data => {
             if (data) {
-                const ticker = data.ticker || 'N/A'; // Adjust based on actual data structure
-                let rowData = [ticker]; // Start row with ticker
+                let rowData = [data.stockTicker]
         
                 // Calculate financial metrics
                 const financialMetrics = calculateFinancials(data.financials, data.stock_price, data.total_shares);
         
-                // Manually handle stockPrice and totalShares
-                rowData.push(data.stock_price !== undefined ? data.stock_price : 'N/A');
-                rowData.push(data.total_shares !== undefined ? data.total_shares : 'N/A');
-        
                 // Append financial data for each header
                 csvHeaders.forEach(header => {
-                    if (header === 'Ticker' || header === 'stockPrice' || header === 'totalShares') {
-                        // These have been already handled
+                    if (header === 'Ticker') {
+                        // Ticker has already been handled
+                    } else if (header === 'stockPrice') {
+                        rowData.push(data.stock_price !== undefined ? data.stock_price : 'N/A');
+                    } else if (header === 'totalShares') {
+                        rowData.push(data.total_shares !== undefined ? data.total_shares : 'N/A');
                     } else if (financialMetrics[header] !== undefined) {
                         rowData.push(financialMetrics[header]);
                     } else if (passFailHeaders.includes(header)) {
@@ -176,7 +178,7 @@ app.post('/api/processJSON', async (req, res) => {
                         rowData.push(value);
                     }
                 });
-                console.log(`Row data for ${ticker}:`, rowData.join(','));
+                console.log(`Row data for ${data.stockTicker}:`, rowData.join(','));
                 csvContent += rowData.join(',') + '\n';
             } else {
                 console.log(`No data available for one of the stocks.`);
@@ -222,6 +224,7 @@ function calculateFinancials(financials, stockPrice, totalShares) {
     const cash = getNestedValue(['balance_sheet', 'cash', 'value'], financials);
     const income_tax_expense_benefit = getNestedValue(['income_statement', 'income_tax_expense_benefit', 'value'], financials);
     const income_loss_from_continuing_operations_before_tax = getNestedValue(['income_statement', 'income_loss_from_continuing_operations_before_tax', 'value'], financials);
+    const income_loss_from_continuing_operations_after_tax = getNestedValue(['income_statement', 'income_loss_from_continuing_operations_after_tax', 'value'], financials);
 
     // is this correct?
     const longTermDebt = getNestedValue(['balance_sheet', 'long_term_debt', 'value'], financials);
@@ -239,13 +242,14 @@ function calculateFinancials(financials, stockPrice, totalShares) {
     const currentRatio = currentLiabilities > 0 ? currentAssets / currentLiabilities : 0;
     const ROA = totalAssets > 0 ? netIncomeLoss / totalAssets * 100 : 0;
     const ROE = totalEquity > 0 ? netIncomeLoss / totalEquity * 100 : 0;
-    const ROIC = (totalEquity + totalLiabilities) > 0 ? netIncomeLoss / (totalEquity + totalLiabilities) * 100 : 0;
-    const SGnA = grossProfit - costsAndExpenses;
-    const SGnAMargin = (SGnA / revenues) * 100;
-    const researchAndDevelopment = (research_and_development / grossProfit) * 100;
-    const incomeTaxExpenses = (income_tax_expense_benefit - income_loss_from_continuing_operations_before_tax) * 100;
+    const ROIC = (totalEquity + longTermDebt) > 0 ? income_loss_from_continuing_operations_after_tax / (totalEquity + longTermDebt) * 100 : 0;
     const cashAndDebt = cash > longTermDebt ? 1 : 0;
-    // above calculations have been confirmed correct
+
+
+    // check if this is correct
+    const researchAndDevelopment = (research_and_development / grossProfit) * 100;
+    // this calculates the tax rate, however how to confirm they are paying their fair share?
+    const incomeTaxExpenses = (income_tax_expense_benefit / income_loss_from_continuing_operations_before_tax) * 100;
 
     // Pass/Fail checks
     const passFailResults = {
@@ -259,9 +263,8 @@ function calculateFinancials(financials, stockPrice, totalShares) {
         ROACheck: ROA > 20 ? 1 : 0,
         ROECheck: ROE > 15 ? 1 : 0,
         ROICCheck: ROIC > 15 ? 1 : 0,
-        SGnAMarginCheck: SGnAMargin < 30 ? 1 : 0,
         researchAndDevelopmentCheck: researchAndDevelopment <= 30 ? 1 : 0,
-        incomeTaxExpensesCheck: incomeTaxExpenses > 17 ? 1 : 0,
+        incomeTaxExpensesCheck: incomeTaxExpenses > 13 ? 1 : 0,
         cashAndDebtCheck: cashAndDebt
     };
 
@@ -279,8 +282,6 @@ function calculateFinancials(financials, stockPrice, totalShares) {
         ROA,
         ROE,
         ROIC,
-        SGnA,
-        SGnAMargin,
         researchAndDevelopment,
         //depreciationMargin,
         //interestExpense,
