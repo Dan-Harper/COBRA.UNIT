@@ -4,6 +4,7 @@ from lxml import etree
 import lxml.html
 from urllib.parse import urljoin
 import bs4
+import re
 
 class GrahamvalueSpider(scrapy.Spider):
     name = "grahamvalue"
@@ -25,8 +26,8 @@ class GrahamvalueSpider(scrapy.Spider):
             tds = tr.xpath('.//td')
             if len(tds) == 0: continue
             row = [ td.text_content().strip() for td in tds]
-            ticker = row[0]
-            print(row)
+            m = re.match('^.*\((.*?)\)$',row[1])
+            ticker = m.groups()[0]
 
     def parse(self, response):
         self.convert_table_to_csv(response)
