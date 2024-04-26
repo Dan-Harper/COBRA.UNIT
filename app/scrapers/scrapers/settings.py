@@ -62,9 +62,6 @@ ROBOTSTXT_OBEY = False
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-#ITEM_PIPELINES = {
-#    "scrapers.pipelines.ScrapersPipeline": 300,
-#}
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
@@ -91,3 +88,14 @@ ROBOTSTXT_OBEY = False
 REQUEST_FINGERPRINTER_IMPLEMENTATION = "2.7"
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 FEED_EXPORT_ENCODING = "utf-8"
+# ITEM_PIPELINES = {
+#     "scrapers.pipelines.ScrapersPipeline": 300,
+# }
+FEED_EXPORTERS = {
+    'csv': 'scrapy.exporters.CsvItemExporter',
+}
+FIELDS_TO_EXPORT = [
+    'ticker_code',
+    'other_data',
+]
+CSV_DELIMITER = "\t"

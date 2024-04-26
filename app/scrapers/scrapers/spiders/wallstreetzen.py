@@ -4,8 +4,9 @@ from lxml import etree
 import lxml.html
 from urllib.parse import urljoin
 import bs4
+from scrapers.items import TickerItem
 
-class Wallstreetzen(scrapy.Spider):
+class WallstreetzenSpider(scrapy.Spider):
     name = "wallstreetzen"
     allowed_domains = ["wallstreetzen.com"]
     start_urls = ["https://www.wallstreetzen.com/stock-screener/?t=1&p=1&f%5Bmc%5D=%2C300000000&f%5Bzv%5D=80%2C&f%5Broe%5D=0.01%2C&f%5Broa%5D=0.01%2C&f%5Broic%5D=0.01%2C&f%5Bgm%5D=0.1%2C&f%5Bpm%5D=0.1%2C&s=mc&sd=desc"]
@@ -20,6 +21,8 @@ class Wallstreetzen(scrapy.Spider):
             row = [ td.text_content() for td in tds]
             ticker = row[0]
             print(ticker)
+            yield(TickerItem(ticker_code=ticker, source="wallstreetzen"))
 
     def parse(self, response):
-        self.convert_table_to_csv(response)
+        for x in self.convert_table_to_csv(response):
+            yield x

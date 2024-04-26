@@ -4,6 +4,7 @@ from lxml import etree
 import lxml.html
 from urllib.parse import urljoin
 import bs4
+from scrapers.items import TickerItem
 
 class FinvizSpider(scrapy.Spider):
     name = "finviz"
@@ -21,14 +22,15 @@ class FinvizSpider(scrapy.Spider):
             if n == 1: continue
             row = [ td.text_content() for td in tds]
             ticker = row[1]
-            print(ticker)
+            yield TickerItem(ticker_code=ticker, source="finviz")
 
     def parse(self, response):
         xpath_next_url = '//*[@id="screener_pagination"]//a[last()]'
         next_link = response.xpath(xpath_next_url)
 
         if len(next_link) == 1:
+            for x in self.convert_table_to_csv(response):
+                yield x            
             if 'href' in next_link[0].attrib:
                 absolute_url = urljoin(response.url, next_link[0].attrib['href'])
-                self.convert_table_to_csv(response)
                 yield scrapy.Request(url=absolute_url)

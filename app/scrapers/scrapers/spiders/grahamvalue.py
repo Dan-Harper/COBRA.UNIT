@@ -5,6 +5,7 @@ import lxml.html
 from urllib.parse import urljoin
 import bs4
 import re
+from scrapers.items import TickerItem
 
 class GrahamvalueSpider(scrapy.Spider):
     name = "grahamvalue"
@@ -28,6 +29,9 @@ class GrahamvalueSpider(scrapy.Spider):
             row = [ td.text_content().strip() for td in tds]
             m = re.match('^.*\((.*?)\)$',row[1])
             ticker = m.groups()[0]
+            print(ticker)
+            yield TickerItem(ticker_code=ticker, source="grahamvalue")
 
     def parse(self, response):
-        self.convert_table_to_csv(response)
+        for x in self.convert_table_to_csv(response):
+            yield x
