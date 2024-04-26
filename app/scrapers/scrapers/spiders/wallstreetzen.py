@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 import bs4
 
 class Wallstreetzen(scrapy.Spider):
-    name = "finviz"
+    name = "wallstreetzen"
     allowed_domains = ["wallstreetzen.com"]
     start_urls = ["https://www.wallstreetzen.com/stock-screener/?t=1&p=1&f%5Bmc%5D=%2C300000000&f%5Bzv%5D=80%2C&f%5Broe%5D=0.01%2C&f%5Broa%5D=0.01%2C&f%5Broic%5D=0.01%2C&f%5Bgm%5D=0.1%2C&f%5Bpm%5D=0.1%2C&s=mc&sd=desc"]
 
