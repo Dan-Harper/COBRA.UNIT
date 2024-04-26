@@ -28,8 +28,11 @@ class GrahamvalueSpider(scrapy.Spider):
             if len(tds) == 0: continue
             row = [ td.text_content().strip() for td in tds]
             m = re.match('^.*\((.*?)\)$',row[1])
+            last_updated = row[5]
             ticker = m.groups()[0]
-            print(ticker)
+            if not re.match('^.*(minute|hour|day).*$',last_updated):
+                continue
+            print(row)
             yield TickerItem(ticker_code=ticker, source="grahamvalue")
 
     def parse(self, response):
