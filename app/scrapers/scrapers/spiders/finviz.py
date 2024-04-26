@@ -1,5 +1,7 @@
 import scrapy
-from lxml import html
+from lxml.html.soupparser import convert_tree
+from lxml import etree
+import lxml.html
 from urllib.parse import urljoin
 import bs4
 
@@ -9,13 +11,15 @@ class FinvizSpider(scrapy.Spider):
     start_urls = ["https://finviz.com/screener.ashx?v=111&f=cap_microunder,fa_debteq_u0.5,fa_grossmargin_o15,fa_roa_o15,fa_roe_o10&ft=2"]
 
     def convert_table_to_csv(self, response):
-        soup = bs4.BeautifulSoup(response.text, 'lxml')
-        table = soup.find(id="screener-table")
-
-        # skip header and empty row, we only want the data
-        rows = table.find_all('tr')[2:]
-        for tr in rows:
-            row = [td.text for td in tr('td')]
+        root = lxml.html.fromstring(response.text)[0]
+        table = root.xpath("//tr[@id='screener-table']/td/table")[0]
+        n = 0
+        for tr in table.xpath('.//tr'):
+            tds = tr.xpath('.//td')
+            if len(tds) == 0: continue
+            n += 1
+            if n == 1: continue
+            row = [ td.text_content() for td in tds]
             ticker = row[1]
             print(ticker)
 
