@@ -8,7 +8,7 @@ from datetime import datetime
 import requests
 import re
 from lxml import etree
-from lxml.html.soupparser import convert_tree
+#from lxml.html.soupparser import convert_tree
 import lxml.html
 from urllib.parse import urljoin
 from dataclasses import dataclass
