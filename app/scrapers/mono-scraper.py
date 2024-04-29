@@ -1,6 +1,10 @@
 #
 # minimal monolithic spider
 #
+import argparse
+import os
+import csv
+from datetime import datetime
 import requests
 import re
 from lxml import etree
@@ -14,6 +18,9 @@ import sys
 class TickerItem:
     ticker_code: str
     source: str
+
+    def serialize(self):
+        return [self.ticker_code, self.source]
 
 class Spider:
     crawl_queue = None
@@ -111,11 +118,29 @@ class WallstreetzenSpider(Spider):
             row = [ td.text_content() for td in tds]
             ticker = row[0]
             print(row)
-            self.collected.append(TickerItem(ticker_code=ticker, source="wallstreetzen"))
+            self.collected.append(TickerItem(ticker_code=ticker, source=self.name))
 
+def valid_dir(outputdir):
+    if not os.path.isdir(outputdir):
+        raise argparse.ArgumentTypeError('[ERROR] input directory does not exist')
+    return outputdir
 
 if __name__ == '__main__':
-    #a = GrahamvalueSpider()
-    #a = FinvizSpider()
-    a = WallstreetzenSpider()
-    a.run()
+    arg_parser = argparse.ArgumentParser(description='operator script for femtocrawl')
+    arg_parser.add_argument('--output' ,dest='output', action='store', type=valid_dir, required=True, help='output directory')
+    args = arg_parser.parse_args()
+
+    all_collected = []
+    for cname in [GrahamvalueSpider, FinvizSpider, WallstreetzenSpider]:
+    #for cname in [FinvizSpider,]:
+        c = cname()
+        c.run()
+        all_collected += c.collected
+
+    out_file = os.path.join(args.output, datetime.today().strftime('%Y-%m-%d.csv') )
+    print("[LOG] Writing to file {0}".format(out_file), file=sys.stderr)
+    with open(out_file, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        for tickeritem in all_collected:
+            writer.writerow(tickeritem.serialize())
+
