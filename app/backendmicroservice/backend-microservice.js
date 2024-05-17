@@ -2,6 +2,15 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const fs = require('fs');
+const parse = require('csv-parse/sync').parse;
+const stringify = require('csv-stringify/sync').stringify;
+
+let fetch;
+(async () => {
+  fetch = (await import('node-fetch')).default;
+})();
+
+const outputFilePath = 'C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/!README/pqrOutput.csv';
 
 const app = express();
 
@@ -189,12 +198,28 @@ app.post('/api/processJSON', async (req, res) => {
 
         // Write the CSV content to a file
         const outputFilePath = 'C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/!README/pqrOutput.csv';
-        fs.writeFileSync(outputFilePath, csvContent);
-        const csvData = fs.readFileSync(outputFilePath, 'utf8');
-        res.json({ csvData });
+        fs.writeFile(outputFilePath, csvContent, async (err) => {
+            if (err) {
+                console.error("Error writing file:", err);
+                res.status(500).send('Error writing CSV file');
+                return;
+            }
+
+            console.log('CSV written.');
+            await sortAndRewriteCSV(outputFilePath);
+            fs.readFile(outputFilePath, 'utf8', (err, data) => {
+                if (err) {
+                    console.error("Error reading sorted CSV:", err);
+                    res.status(500).send('Error reading sorted CSV file');
+                    return;
+                }
+                console.log('CSV sorted and read successfully.');
+                res.json({ data });
+            });
+        });
     } catch (error) {
-        console.error(error);
-        res.status(500).send('Internal server error');
+        console.error("Error during processing:", error);
+        res.status(500).send('Internal Server Error');
     }
 });
 
@@ -295,6 +320,33 @@ function calculateFinancials(financials, stockPrice, totalShares) {
         passFailResults,
         totalPasses
     };
+}
+
+// Function to read, sort, and rewrite the CSV
+async function sortAndRewriteCSV(filePath) {
+    try {
+        fs.readFile(filePath, 'utf8', (err, csvData) => {
+            if (err) {
+                throw err;
+            }
+            const records = parse(csvData, {
+                columns: true,
+                skip_empty_lines: true
+            });
+
+            records.sort((a, b) => Number(b.totalPasses) - Number(a.totalPasses));
+
+            const sortedCsv = stringify(records, { header: true });
+            fs.writeFile(filePath, sortedCsv, (err) => {
+                if (err) {
+                    throw err;
+                }
+                console.log('CSV has been sorted and rewritten based on totalPasses.');
+            });
+        });
+    } catch (error) {
+        console.error('Failed to read, sort, or write the CSV:', error);
+    }
 }
 
 app.use(express.static('build'));
