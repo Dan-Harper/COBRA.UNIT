@@ -121,8 +121,9 @@ class WallstreetzenSpider(Spider):
             self.collected.append(TickerItem(ticker_code=ticker, source=self.name))
 
 def valid_dir(outputdir):
-    if not os.path.isdir(outputdir):
-        raise argparse.ArgumentTypeError('[ERROR] input directory does not exist')
+    directory = os.path.dirname(outputdir)  # Extract directory from file path
+    if not os.path.exists(directory):
+        os.makedirs(directory)  # Create the directory if it does not exist
     return outputdir
 
 if __name__ == '__main__':
@@ -137,7 +138,7 @@ if __name__ == '__main__':
         c.run()
         all_collected += c.collected
 
-    out_file = os.path.join(args.output, datetime.today().strftime('%Y-%m-%d.csv') )
+    out_file = os.path.join(args.output, 'pqrScraper-' + datetime.today().strftime('%Y-%m-%d.csv') )
     print("[LOG] Writing to file {0}".format(out_file), file=sys.stderr)
     with open(out_file, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
