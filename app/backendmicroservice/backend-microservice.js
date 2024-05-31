@@ -77,6 +77,7 @@ app.post('/api/processJSON', async (req, res) => {
 
         const stockDataPromises = stocks.map(async (stock) => {
             const stockData = await fetchStockData(stock);
+            if (!stockData) return null;
             console.log(`Fetched stock data for ${stock}:`, stockData);
             console.log(`Stock ticker data for ${stock}:`, stockData.stockTicker)
 
@@ -93,8 +94,8 @@ app.post('/api/processJSON', async (req, res) => {
             return stockData;
         });
 
-        const fetchedStockData = await Promise.all(stockDataPromises);
-        
+        const fetchedStockData = (await Promise.all(stockDataPromises)).filter(data => data);        
+       
         console.log("Fetched stock data:", fetchedStockData);
 
         let headers = new Set(["Ticker"]);
