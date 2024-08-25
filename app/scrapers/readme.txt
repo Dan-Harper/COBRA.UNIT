@@ -4,7 +4,11 @@ Development
 The following command will take the output directory as input, it will
 then run the scrapers and write the output in a csv file with the name YYYY-MM-DD.csv
 
-python mono-scraper.py --output C:\Users\Wanderer\Documents\OSU-GT-STANFORD\COBRA.UNIT\!README\mono-scraper-output.csv
+make sure to cd to this location:
+
+cd C:\Users\Wanderer\Documents\OSU-GT-STANFORD\COBRA.UNIT\app\scrapers
+
+python mono-scraper.py --output C:\Users\Wanderer\Documents\OSU-GT-STANFORD\COBRA.UNIT\!README
 
 Docker
 ======

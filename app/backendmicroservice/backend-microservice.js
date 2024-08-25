@@ -4,6 +4,7 @@ const cors = require('cors');
 const fs = require('fs');
 const parse = require('csv-parse/sync').parse;
 const stringify = require('csv-stringify/sync').stringify;
+const { spawn } = require('child_process');
 
 let fetch;
 (async () => {
@@ -68,6 +69,34 @@ const fetchTotalShares = async (stockTicker) => {
     }
 };
 
+const getStockBetas = async (symbols) => {
+    return new Promise((resolve, reject) => {
+        const process = spawn('python', ['C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/app/betaFilter/betaFilter.py', JSON.stringify(symbols)]);
+        let result = '';
+        process.stdout.on('data', (data) => {
+            result += data.toString();
+        });
+        process.stderr.on('data', (data) => {
+            console.error(`stderr: ${data}`);
+        });
+        process.on('close', (code) => {
+            if (code === 0) {
+                try {
+                    if (result.trim() === '') {
+                        reject('No output from Python script');
+                    } else {
+                        resolve(JSON.parse(result));
+                    }
+                } catch (error) {
+                    reject(`Error parsing JSON: ${error.message}`);
+                }
+            } else {
+                reject(`child process exited with code ${code}`);
+            }
+        });
+    });
+};
+
 app.post('/api/processJSON', async (req, res) => {
 
     try {
@@ -98,6 +127,19 @@ app.post('/api/processJSON', async (req, res) => {
        
         console.log("Fetched stock data:", fetchedStockData);
 
+        const betaData = await getStockBetas(stocks);
+
+        // Add Beta values to stock data
+        fetchedStockData.forEach(data => {
+            const betaInfo = betaData.find(beta => beta.Stock === data.stockTicker);
+            if (betaInfo) {
+                data.beta = betaInfo.Beta;
+            } else {
+                data.beta = null; 
+                // Handle case where beta is not available
+            }
+        });
+
         let headers = new Set(["Ticker"]);
 
         let calculatedHeaders = [
@@ -115,7 +157,8 @@ app.post('/api/processJSON', async (req, res) => {
             "ROIC",
             "researchAndDevelopment",
             "incomeTaxExpenses",
-            "cashAndDebt"
+            "cashAndDebt",
+            "beta"
         ];
 
         // Generate headers from the fetched data for dynamic financial data
@@ -144,7 +187,8 @@ app.post('/api/processJSON', async (req, res) => {
             "ROICCheck",
             "researchAndDevelopmentCheck",
             "incomeTaxExpensesCheck",
-            "cashAndDebtCheck"
+            "cashAndDebtCheck",
+            "betaCheck"
         ];
 
         let csvHeaders = Array.from(headers).concat(calculatedHeaders).concat(passFailHeaders).concat(['totalPasses']);
@@ -156,7 +200,7 @@ app.post('/api/processJSON', async (req, res) => {
                 let rowData = [data.stockTicker]
         
                 // Calculate financial metrics
-                const financialMetrics = calculateFinancials(data.financials, data.stock_price, data.total_shares);
+                const financialMetrics = calculateFinancials(data.financials, data.stock_price, data.total_shares, data.beta);
         
                 // Append financial data for each header
                 csvHeaders.forEach(header => {
@@ -166,6 +210,8 @@ app.post('/api/processJSON', async (req, res) => {
                         rowData.push(data.stock_price !== undefined ? data.stock_price : 'N/A');
                     } else if (header === 'totalShares') {
                         rowData.push(data.total_shares !== undefined ? data.total_shares : 'N/A');
+                    } else if (header === 'beta') {
+                        rowData.push(data.beta !== undefined ? data.beta : 'N/A');
                     } else if (financialMetrics[header] !== undefined) {
                         rowData.push(financialMetrics[header]);
                     } else if (passFailHeaders.includes(header)) {
@@ -225,7 +271,7 @@ app.post('/api/processJSON', async (req, res) => {
 });
 
 
-function calculateFinancials(financials, stockPrice, totalShares) {
+function calculateFinancials(financials, stockPrice, totalShares, beta) {
     
     console.log("Financial data received:", financials);
 
@@ -291,7 +337,8 @@ function calculateFinancials(financials, stockPrice, totalShares) {
         ROICCheck: ROIC > 15 ? 1 : 0,
         researchAndDevelopmentCheck: researchAndDevelopment <= 30 ? 1 : 0,
         incomeTaxExpensesCheck: incomeTaxExpenses > 13 ? 1 : 0,
-        cashAndDebtCheck: cashAndDebt
+        cashAndDebtCheck: cashAndDebt,
+        betaCheck: beta !== undefined && beta >= 0.5 && beta <= 1.0 ? 1 : 0
     };
 
     const totalPasses = Object.values(passFailResults).reduce((sum, value) => sum + value, 0);
