@@ -75,7 +75,8 @@ const BackendMicroservicePage = () => {
 const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:5001/api/processJSON', {
+      const backendApi = process.env.REACT_APP_BACKEND_API || 'http://localhost:5001';
+      const response = await fetch(`${backendApi}/api/processJSON`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stocks: inputValue }),

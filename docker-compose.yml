@@ -3,7 +3,7 @@ services:
     image: img1
 
     environment:
-      - BACKEND_API=192.168.1.162:5001
+      - REACT_APP_BACKEND_API=192.168.1.162:5001
     ports:
       - 3000:3000
       - 5001:5001
