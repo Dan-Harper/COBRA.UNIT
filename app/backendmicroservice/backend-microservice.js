@@ -400,7 +400,7 @@ async function sortAndRewriteCSV(filePath) {
 app.use(express.static('build'));
 
 app.get('*', (req, res) => {
-    res.sendFile(__dirname + '/build/index.html');
+    res.sendFile(__dirname + '/build/index.d.ts');
 });
 
 app.listen(5001, () => {

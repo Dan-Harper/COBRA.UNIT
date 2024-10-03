@@ -1,5 +1,6 @@
 "use client";
 import React, { CSSProperties, useState } from 'react';
+const backendApi = process.env.REACT_APP_BACKEND_API || 'http://localhost:5001';
 
 const BackendMicroservicePage = () => {
   const [inputValue, setInputValue] = useState('');
@@ -75,7 +76,7 @@ const BackendMicroservicePage = () => {
 const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const backendApi = process.env.REACT_APP_BACKEND_API || 'http://localhost:5001';
+      console.log(backendApi);
       const response = await fetch(`${backendApi}/api/processJSON`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

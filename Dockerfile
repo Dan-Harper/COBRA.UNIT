@@ -6,5 +6,5 @@ RUN mkdir /app
 COPY . /app/
 WORKDIR /app
 RUN npm install
-RUN npm run build
+RUN REACT_APP_BACKEND_API=$REACT_APP_BACKEND_API npm run build
 CMD ["npm", "run", "start-dev"]
