@@ -1,6 +1,6 @@
 "use client";
 import React, { CSSProperties, useState } from 'react';
-const backendApi = process.env.REACT_APP_BACKEND_API || 'http://localhost:5001';
+const backendApi = process.env.NEXT_PUBLIC_BACKEND_API || 'http://localhost:5001';
 
 const BackendMicroservicePage = () => {
   const [inputValue, setInputValue] = useState('');
