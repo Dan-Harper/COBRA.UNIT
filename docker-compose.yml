@@ -4,7 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        - NODE_ENV=local
+        - NODE_ENV=lprod
+    volumes:
+      - /var/pqr-bucket:/var/pqr-bucket
     ports:
       - 3000:3000
       - 5001:5001

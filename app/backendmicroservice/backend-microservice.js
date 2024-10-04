@@ -11,7 +11,7 @@ let fetch;
   fetch = (await import('node-fetch')).default;
 })();
 
-const outputFilePath = 'C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/!README/pqrOutput.csv';
+const outputFilePath = '/var/pqr-bucket/pqrOutput.csv';
 
 const app = express();
 
@@ -71,7 +71,7 @@ const fetchTotalShares = async (stockTicker) => {
 
 const getStockBetas = async (symbols) => {
     return new Promise((resolve, reject) => {
-        const process = spawn('python', ['C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/app/betaFilter/betaFilter.py', JSON.stringify(symbols)]);
+        const process = spawn('python3', ['./app/betaFilter/betaFilter.py', JSON.stringify(symbols)]);
         let result = '';
         process.stdout.on('data', (data) => {
             result += data.toString();
@@ -244,7 +244,6 @@ app.post('/api/processJSON', async (req, res) => {
         
 
         // Write the CSV content to a file
-        const outputFilePath = 'C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/!README/pqrOutput.csv';
         fs.writeFile(outputFilePath, csvContent, async (err) => {
             if (err) {
                 console.error("Error writing file:", err);
