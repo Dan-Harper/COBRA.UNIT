@@ -5,13 +5,12 @@ const fs = require('fs');
 const parse = require('csv-parse/sync').parse;
 const stringify = require('csv-stringify/sync').stringify;
 const { spawn } = require('child_process');
+const yahooFinance = require('yahoo-finance2').default;
 
 let fetch;
 (async () => {
   fetch = (await import('node-fetch')).default;
 })();
-
-const outputFilePath = 'C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/!README/pqrOutput.csv';
 
 const app = express();
 
@@ -26,11 +25,18 @@ const fetchStockData = async (stockTicker) => {
     try {
         const response = await fetch(stockApiEndpoint);
         const data = await response.json();
-        console.log("API Response for", stockTicker, ":", data);
 
         if (data.results && data.results.length > 0) {
             const resultWithTicker = {...data.results[0], stockTicker: stockTicker};
-            return resultWithTicker;
+            
+            const stockDetails = await fetchStockDetails(stockTicker);
+
+            const stockData = {
+                ...resultWithTicker,
+                ...stockDetails
+            }
+
+            return stockData;
         }
     } catch (error) {
         console.error("Error fetching stock data:", error);
@@ -148,17 +154,25 @@ app.post('/api/processJSON', async (req, res) => {
             "grossMargin",
             "netProfitMargin",
             "peRatio",
-            "pbRatio",
+            "priceToBookRatio",
             "debtToEquity",
             "marketCap",
             "currentRatio",
+            "cashAndCashEquivalents",
             "ROA",
-            "ROE",
+            "returnOnEquity",
             "ROIC",
             "researchAndDevelopment",
             "incomeTaxExpenses",
-            "cashAndDebt",
-            "beta"
+            "beta",
+            "quickRatio",
+            "enterpriseValue",
+            "enterpriseToRevenue",
+            // yahoo finance variables below
+            "sector",
+            "industry",
+            "volume",
+            "quoteType"
         ];
 
         // Generate headers from the fetched data for dynamic financial data
@@ -179,15 +193,14 @@ app.post('/api/processJSON', async (req, res) => {
             "grossMarginCheck2",
             "netProfitMarginCheck1",
             "netProfitMarginCheck2",
-            "peTimesPbRatioCheck",
+            "peTimesPriceToBookRatioCheck",
             "marketCapCheck",
             "currentRatioCheck",
             "ROACheck",
-            "ROECheck",
+            "returnOnEquityCheck",
             "ROICCheck",
             "researchAndDevelopmentCheck",
             "incomeTaxExpensesCheck",
-            "cashAndDebtCheck",
             "betaCheck"
         ];
 
@@ -198,10 +211,21 @@ app.post('/api/processJSON', async (req, res) => {
         fetchedStockData.forEach(data => {
             if (data) {
                 let rowData = [data.stockTicker]
-        
-                // Calculate financial metrics
+
+                const revenues = data.financials ? data.financials.income_statement.revenues.value : 0;
+
                 const financialMetrics = calculateFinancials(data.financials, data.stock_price, data.total_shares, data.beta);
-        
+
+                // Calculating derived fields
+                const enterpriseToRevenue = calculateEnterpriseValueToRevenue(
+                    financialMetrics.marketCap,
+                    financialMetrics.longTermDebt,
+                    financialMetrics.cashAndCashEquivalents,
+                    revenues
+                );
+                
+                const enterpriseValue = financialMetrics.marketCap + financialMetrics.longTermDebt - financialMetrics.cashAndCashEquivalents;
+                
                 // Append financial data for each header
                 csvHeaders.forEach(header => {
                     if (header === 'Ticker') {
@@ -212,7 +236,17 @@ app.post('/api/processJSON', async (req, res) => {
                         rowData.push(data.total_shares !== undefined ? data.total_shares : 'N/A');
                     } else if (header === 'beta') {
                         rowData.push(data.beta !== undefined ? data.beta : 'N/A');
-                    } else if (financialMetrics[header] !== undefined) {
+                    } else if (header === 'cashAndCashEquivalents') {
+                        rowData.push(financialMetrics.cashAndCashEquivalents !== undefined ? financialMetrics.cashAndCashEquivalents : 'N/A');
+                    } else if (header === 'enterpriseValue') {
+                        rowData.push(enterpriseValue !== 'N/A' ? enterpriseValue : 'N/A');
+                    } else if (header === 'enterpriseToRevenue') {
+                        rowData.push(enterpriseToRevenue !== 'N/A' ? enterpriseToRevenue : 'N/A');
+                    } else if (header === 'quickRatio') {
+                        rowData.push(data.quickRatio !== undefined ? data.quickRatio : 'N/A');
+                    } else if (['sector', 'industry', 'volume', 'quoteType'].includes(header)) {
+                            rowData.push(data[header] !== undefined ? data[header] : 'N/A');
+                    }  else if (financialMetrics[header] !== undefined) {
                         rowData.push(financialMetrics[header]);
                     } else if (passFailHeaders.includes(header)) {
                         // New condition to handle pass/fail check results
@@ -290,16 +324,25 @@ function calculateFinancials(financials, stockPrice, totalShares, beta) {
     const totalLiabilities = getNestedValue(['balance_sheet', 'liabilities', 'value'], financials);    
     const currentAssets = getNestedValue(['balance_sheet', 'current_assets', 'value'], financials);
     const currentLiabilities = getNestedValue(['balance_sheet', 'current_liabilities', 'value'], financials);
+    const inventory = getNestedValue(['balance_sheet', 'inventory', 'value'], financials);
+    const longTermDebt = getNestedValue(['balance_sheet', 'long_term_debt', 'value'], financials);
+    const accountsReceivable = getNestedValue(['balance_sheet', 'accounts_receivable', 'value'], financials);
+    const otherCurrentAssets = getNestedValue(['balance_sheet', 'other_current_assets', 'value'], financials);
     // remove this if debt to equity is fixed const debt = currentLiabilities / noncurrent_liabilities;
     const costsAndExpenses = getNestedValue(['income_statement', 'costs_and_expenses', 'value'], financials);
     const research_and_development = getNestedValue(['income_statement', 'research_and_development', 'value'], financials);
-    const cash = getNestedValue(['balance_sheet', 'cash', 'value'], financials);
     const income_tax_expense_benefit = getNestedValue(['income_statement', 'income_tax_expense_benefit', 'value'], financials);
     const income_loss_from_continuing_operations_before_tax = getNestedValue(['income_statement', 'income_loss_from_continuing_operations_before_tax', 'value'], financials);
     const income_loss_from_continuing_operations_after_tax = getNestedValue(['income_statement', 'income_loss_from_continuing_operations_after_tax', 'value'], financials);
 
-    // is this correct?
-    const longTermDebt = getNestedValue(['balance_sheet', 'long_term_debt', 'value'], financials);
+    const quickRatio = currentLiabilities > 0 ? (currentAssets - inventory) / currentLiabilities : 0;
+
+    let cashAndCashEquivalents;
+    if (currentAssets !== undefined && inventory !== undefined && accountsReceivable !== undefined && otherCurrentAssets !== undefined) {
+        cashAndCashEquivalents = currentAssets - inventory - accountsReceivable - otherCurrentAssets;
+    } else {
+        cashAndCashEquivalents = 'N/A';
+    }
 
     const grossMargin = revenues > 0 ? grossProfit / revenues : 0;
     const netProfitMargin = (netIncomeLoss / revenues) * 100;
@@ -307,16 +350,14 @@ function calculateFinancials(financials, stockPrice, totalShares, beta) {
     const totalShareHolderEquity = totalAssets - totalLiabilities;
     // may need to add preferred equity calculation if it exists here in order to refine book value per share calculation
     const bookValuePerShare = totalShareHolderEquity / totalShares;
-    const pbRatio = stockPrice / bookValuePerShare;
-    const peTimesPbRatio = peRatio * pbRatio;
+    const priceToBookRatio = stockPrice / bookValuePerShare;
+    const peTimesPriceToBookRatio = peRatio * priceToBookRatio;
     const debtToEquity = totalEquity > 0 ? totalLiabilities / totalEquity : 0;
     const marketCap = totalShares * stockPrice;
     const currentRatio = currentLiabilities > 0 ? currentAssets / currentLiabilities : 0;
     const ROA = totalAssets > 0 ? netIncomeLoss / totalAssets * 100 : 0;
-    const ROE = totalEquity > 0 ? netIncomeLoss / totalEquity * 100 : 0;
+    const returnOnEquity = totalEquity > 0 ? netIncomeLoss / totalEquity * 100 : 0;
     const ROIC = (totalEquity + longTermDebt) > 0 ? income_loss_from_continuing_operations_after_tax / (totalEquity + longTermDebt) * 100 : 0;
-    const cashAndDebt = cash > longTermDebt ? 1 : 0;
-
 
     // check if this is correct
     const researchAndDevelopment = (research_and_development / grossProfit) * 100;
@@ -329,31 +370,33 @@ function calculateFinancials(financials, stockPrice, totalShares, beta) {
         grossMarginCheck2: grossMargin > 0.4 ? 1 : 0,
         netProfitMarginCheck1: netProfitMargin > 10 ? 1 : 0,
         netProfitMarginCheck2: netProfitMargin > 20 ? 1 : 0,
-        peTimesPbRatioCheck: peTimesPbRatio < 22.5 ? 1 : 0,
+        peTimesPriceToBookRatioCheck: peTimesPriceToBookRatio < 22.5 ? 1 : 0,
         marketCapCheck: marketCap < 250000000 ? 1 : 0,
         currentRatioCheck: currentRatio > 1.5 ? 1 : 0,
         ROACheck: ROA > 20 ? 1 : 0,
-        ROECheck: ROE > 15 ? 1 : 0,
+        returnOnEquityCheck: returnOnEquity > 15 ? 1 : 0,
         ROICCheck: ROIC > 15 ? 1 : 0,
         researchAndDevelopmentCheck: researchAndDevelopment <= 30 ? 1 : 0,
         incomeTaxExpensesCheck: incomeTaxExpenses > 13 ? 1 : 0,
-        cashAndDebtCheck: cashAndDebt,
-        betaCheck: beta !== undefined && beta >= 0.5 && beta <= 1.0 ? 1 : 0
+        betaCheck: beta !== undefined && beta >= 0.6 && beta <= 0.8 ? 1 : 0
     };
 
     const totalPasses = Object.values(passFailResults).reduce((sum, value) => sum + value, 0);
 
     return {
+        cashAndCashEquivalents,
+        longTermDebt,
+        quickRatio,
         grossMargin,
         netProfitMargin,
         peRatio,
-        pbRatio,
-        peTimesPbRatio,
+        priceToBookRatio,
+        peTimesPriceToBookRatio,
         debtToEquity,
         marketCap,
         currentRatio,
         ROA,
-        ROE,
+        returnOnEquity,
         ROIC,
         researchAndDevelopment,
         //depreciationMargin,
@@ -361,7 +404,6 @@ function calculateFinancials(financials, stockPrice, totalShares, beta) {
         //interestExpenseMargin,
         incomeTaxExpenses,
         //EPSGrowth,
-        cashAndDebt,
         //retainedEarningsGrowth,
         //capex,
         //capexMargin
@@ -369,6 +411,30 @@ function calculateFinancials(financials, stockPrice, totalShares, beta) {
         totalPasses
     };
 }
+
+const fetchStockDetails = async (stockTicker) => {
+    try {
+        const stockInfo = await yahooFinance.quoteSummary(stockTicker, { modules: ['summaryProfile', 'price'] });
+
+        const stockDetails = {
+            ticker: stockTicker,
+            sector: stockInfo.summaryProfile.sector || 'N/A',
+            industry: stockInfo.summaryProfile.industry || 'N/A',
+            volume: stockInfo.price.regularMarketVolume || 'N/A',
+            quoteType: stockInfo.price.quoteType || 'N/A',
+        };
+
+        return stockDetails;
+    } catch (error) {
+        console.error("Error fetching stock details:", error);
+        return null;
+    }
+};
+
+const calculateEnterpriseValueToRevenue = (marketCap, longTermDebt, cashAndCashEquivalents, revenues) => {
+    const enterpriseValue = marketCap + longTermDebt - cashAndCashEquivalents;
+    return revenues > 0 ? enterpriseValue / revenues : 'N/A';
+};
 
 // Function to read, sort, and rewrite the CSV
 async function sortAndRewriteCSV(filePath) {

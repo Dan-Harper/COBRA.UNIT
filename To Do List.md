@@ -1,6 +1,19 @@
 # COBRA.UNIT
 
 
+https://docs.google.com/document/d/1UIe2nRIo6l14IjHAFvFOoj8VAlo474KQgGPuX_zicsE/edit?tab=t.0
+
+
+
+
+
+
+
+
+
+
+
+
 (Dan) Add logos to a folder in this project
 
 (DAN) Add DB info from previous project GitHub
@@ -60,8 +73,6 @@ Change name to COBRA.AI
 
 Make repository open source
 
-Email list for MVP
-
 Create a video demo of application
 
 Employees must be partners in the fund
@@ -69,9 +80,6 @@ Employees must be partners in the fund
 Collect terabytes of data, identify patterns
 
 Keep website with a minimalist mindset, only what is necessary. Revise all statements for grammar and flow.
-
-ACH API PNC (talk with Jake to see if he can point to correct person via LinkedIn)
-??? email Payments@fiscal.treasury.gov ???
 
 "Active researchers in AI, ML, Mathematics, Physics, Statistics
 
