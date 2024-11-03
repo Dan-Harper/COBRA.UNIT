@@ -1,0 +1,33 @@
+
+
+5.1
+
+
+
+commit, message group, & push
+
+5.2
+search
+	_______ -> refactor anywhere used
+
+refactor by passing _____.py along with each
+	____.py
+		search any methods being used elsewhere, refactor
+
+5.3
+
+Read 1 hour OS
+
+OS bigshell 1 hour
+
+4. reprompt
+	search any methods being used elsewhere, refactor
+2. reprompt
+	search any methods being used elsewhere, refactor
+3. reprompt
+	search any methods being used elsewhere, refactor
+11. reprompt
+	search any methods being used elsewhere, refactor
+1. reprompt
+	search any methods being used elsewhere, refactor
+

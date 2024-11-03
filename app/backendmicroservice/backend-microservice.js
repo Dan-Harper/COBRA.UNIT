@@ -172,7 +172,9 @@ app.post('/api/processJSON', async (req, res) => {
             "sector",
             "industry",
             "volume",
-            "quoteType"
+            "quoteType",
+            "priceVolume",
+            "earningsYield"
         ];
 
         // Generate headers from the fetched data for dynamic financial data
@@ -201,7 +203,9 @@ app.post('/api/processJSON', async (req, res) => {
             "ROICCheck",
             "researchAndDevelopmentCheck",
             "incomeTaxExpensesCheck",
-            "betaCheck"
+            "betaCheck",
+            "priceVolumeCheck",
+            "earningsYieldCheck"
         ];
 
         let csvHeaders = Array.from(headers).concat(calculatedHeaders).concat(passFailHeaders).concat(['totalPasses']);
@@ -212,9 +216,9 @@ app.post('/api/processJSON', async (req, res) => {
             if (data) {
                 let rowData = [data.stockTicker]
 
-                const revenues = data.financials ? data.financials.income_statement.revenues.value : 0;
-
-                const financialMetrics = calculateFinancials(data.financials, data.stock_price, data.total_shares, data.beta);
+                const revenues = data.financials?.income_statement?.revenues?.value || 0;
+                
+                const financialMetrics = calculateFinancials(data.financials, data.stock_price, data.total_shares, data.beta, data.volume);
 
                 // Calculating derived fields
                 const enterpriseToRevenue = calculateEnterpriseValueToRevenue(
@@ -269,7 +273,7 @@ app.post('/api/processJSON', async (req, res) => {
                     }
                 });
                 console.log(`Row data for ${data.stockTicker}:`, rowData.join(','));
-                csvContent += rowData.join(',') + '\n';
+                csvContent += stringify([rowData], { quoted: true });
             } else {
                 console.log(`No data available for one of the stocks.`);
             }
@@ -305,7 +309,7 @@ app.post('/api/processJSON', async (req, res) => {
 });
 
 
-function calculateFinancials(financials, stockPrice, totalShares, beta) {
+function calculateFinancials(financials, stockPrice, totalShares, beta, volume) {
     
     console.log("Financial data received:", financials);
 
@@ -336,7 +340,7 @@ function calculateFinancials(financials, stockPrice, totalShares, beta) {
     const income_loss_from_continuing_operations_after_tax = getNestedValue(['income_statement', 'income_loss_from_continuing_operations_after_tax', 'value'], financials);
 
     const quickRatio = currentLiabilities > 0 ? (currentAssets - inventory) / currentLiabilities : 0;
-
+    
     let cashAndCashEquivalents;
     if (currentAssets !== undefined && inventory !== undefined && accountsReceivable !== undefined && otherCurrentAssets !== undefined) {
         cashAndCashEquivalents = currentAssets - inventory - accountsReceivable - otherCurrentAssets;
@@ -358,11 +362,12 @@ function calculateFinancials(financials, stockPrice, totalShares, beta) {
     const ROA = totalAssets > 0 ? netIncomeLoss / totalAssets * 100 : 0;
     const returnOnEquity = totalEquity > 0 ? netIncomeLoss / totalEquity * 100 : 0;
     const ROIC = (totalEquity + longTermDebt) > 0 ? income_loss_from_continuing_operations_after_tax / (totalEquity + longTermDebt) * 100 : 0;
-
+    const priceVolume = stockPrice && volume ? stockPrice * volume : 'N/A';
     // check if this is correct
     const researchAndDevelopment = (research_and_development / grossProfit) * 100;
     // this calculates the tax rate, however how to confirm they are paying their fair share?
     const incomeTaxExpenses = (income_tax_expense_benefit / income_loss_from_continuing_operations_before_tax) * 100;
+    const earningsYield = stockPrice > 0 && dilutedEarningsPerShare > 0 ? (dilutedEarningsPerShare / stockPrice) * 100 : 'N/A';
 
     // Pass/Fail checks
     const passFailResults = {
@@ -378,7 +383,9 @@ function calculateFinancials(financials, stockPrice, totalShares, beta) {
         ROICCheck: ROIC > 15 ? 1 : 0,
         researchAndDevelopmentCheck: researchAndDevelopment <= 30 ? 1 : 0,
         incomeTaxExpensesCheck: incomeTaxExpenses > 13 ? 1 : 0,
-        betaCheck: beta !== undefined && beta >= 0.6 && beta <= 0.8 ? 1 : 0
+        betaCheck: beta !== undefined && beta >= 0.6 && beta <= 0.8 ? 1 : 0,
+        priceVolumeCheck: priceVolume < 1000000 ? 1 : 0,
+        earningsYieldCheck: earningsYield !== 'N/A' && earningsYield > 6 ? 3 : 0
     };
 
     const totalPasses = Object.values(passFailResults).reduce((sum, value) => sum + value, 0);
@@ -407,6 +414,8 @@ function calculateFinancials(financials, stockPrice, totalShares, beta) {
         //retainedEarningsGrowth,
         //capex,
         //capexMargin
+        priceVolume,
+        earningsYield: earningsYield !== 'N/A' ? `${earningsYield.toFixed(2)}%` : 'N/A',
         passFailResults,
         totalPasses
     };

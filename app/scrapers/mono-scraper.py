@@ -128,7 +128,7 @@ def valid_dir(outputdir):
 
 if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser(description='operator script for femtocrawl')
-    arg_parser.add_argument('--output' ,dest='output', action='store', type=valid_dir, required=True, help='output directory')
+    arg_parser.add_argument('--output', dest='output', action='store', type=valid_dir, required=True, help='output directory')
     args = arg_parser.parse_args()
 
     all_collected = []
@@ -138,8 +138,9 @@ if __name__ == '__main__':
         c.run()
         all_collected += c.collected
 
-    out_file = os.path.join(args.output, 'pqrScraper-' + datetime.today().strftime('%Y-%m-%d.csv') )
+    out_file = valid_dir(os.path.join(args.output, 'pqrScraper-' + datetime.today().strftime('%Y-%m-%d.csv')))
     print("[LOG] Writing to file {0}".format(out_file), file=sys.stderr)
+    
     with open(out_file, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
         for tickeritem in all_collected:

@@ -8,7 +8,7 @@ make sure to cd to this location:
 
 cd C:\Users\Wanderer\Documents\OSU-GT-STANFORD\COBRA.UNIT\app\scrapers
 
-python mono-scraper.py --output C:\Users\Wanderer\Documents\OSU-GT-STANFORD\COBRA.UNIT\!README
+python mono-scraper.py --output C:\Users\Wanderer\Documents\OSU-GT-STANFORD\COBRA.UNIT\!README\mono-scraper-output
 
 Docker
 ======
