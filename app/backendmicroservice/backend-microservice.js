@@ -376,7 +376,7 @@ function calculateFinancials(financials, stockPrice, totalShares, beta, volume) 
         netProfitMarginCheck1: netProfitMargin > 10 ? 1 : 0,
         netProfitMarginCheck2: netProfitMargin > 20 ? 1 : 0,
         peTimesPriceToBookRatioCheck: peTimesPriceToBookRatio < 22.5 ? 1 : 0,
-        marketCapCheck: marketCap < 250000000 ? 1 : 0,
+        marketCapCheck: marketCap > 350000000 ? -10 : 0,
         currentRatioCheck: currentRatio > 1.5 ? 1 : 0,
         ROACheck: ROA > 20 ? 1 : 0,
         returnOnEquityCheck: returnOnEquity > 15 ? 1 : 0,
