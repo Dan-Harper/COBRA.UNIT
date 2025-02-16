@@ -1,33 +1,42 @@
 import requests
 import pandas as pd
-from config import ALPACA_API_KEY, ALPACA_API_SECRET
-from datetime import datetime, timedelta
+from config import APCA_API_KEY, APCA_API_SECRET
+from datetime import datetime, timedelta, timezone
+
+
+def format_datetime(dt):
+    """
+    Format a datetime object to 'YYYY-MM-DDTHH:MM:SSZ'.
+    """
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def fetch_historical_data(ticker, days=14):
     """
     Fetch historical price data for the past N days.
     """
-    base_url = "https://data.alpaca.markets/v2"
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=days)
+    end_date = datetime.now(timezone.utc) - timedelta(minutes=16)
+    start_date = (end_date - timedelta(days=days)).replace(tzinfo=timezone.utc)
 
-    endpoint = f"{base_url}/stocks/{ticker}/bars"
-    params = {
-        "start": start_date.isoformat(),
-        "end": end_date.isoformat(),
-        "timeframe": "1Day",
-    }
+    base_url = "https://data.alpaca.markets/v2/stocks/bars"
+    start_str = format_datetime(start_date)
+    end_str = format_datetime(end_date)
+
+    # Manually construct the URL query string
+    query_string = f"?symbols={ticker}&timeframe=1Day&start={start_str}&end={end_str}&feed=iex"
+    url = base_url + query_string
+
     headers = {
-        "ALPACA-API-KEY-ID": ALPACA_API_KEY,
-        "ALPACA-API-SECRET-KEY": ALPACA_API_SECRET,
+        "accept": "application/json",
+        "APCA-API-KEY-ID": APCA_API_KEY,
+        "APCA-API-SECRET-KEY": APCA_API_SECRET,
     }
 
-    response = requests.get(endpoint, headers=headers, params=params)
+    response = requests.get(url, headers=headers)
     response.raise_for_status()
     data = response.json()
     # Convert to a DataFrame
-    df = pd.DataFrame(data["bars"])
+    df = pd.DataFrame(data["bars"][ticker])
     df["timestamp"] = pd.to_datetime(df["t"])
     df.set_index("timestamp", inplace=True)
     return df
@@ -40,8 +49,9 @@ def get_stock_quotes(ticker):
     base_url = "https://data.alpaca.markets/v2"
     endpoint = f"{base_url}/stocks/{ticker}/quotes/latest"
     headers = {
-        "APCA-API-KEY-ID": ALPACA_API_KEY,
-        "APCA-API-SECRET-KEY": ALPACA_API_SECRET,
+        "accept": "application/json",
+        "APCA-API-KEY-ID": APCA_API_KEY,
+        "APCA-API-SECRET-KEY": APCA_API_SECRET,
     }
 
     response = requests.get(endpoint, headers=headers)

@@ -220,6 +220,10 @@ app.post('/api/processJSON', async (req, res) => {
                 
                 const financialMetrics = calculateFinancials(data.financials, data.stock_price, data.total_shares, data.beta, data.volume);
 
+                if (financialMetrics.peTimesPriceToBookRatio === 0) {
+                    return;  // Skip this because peTimesPriceToBookRatio is 0
+                }
+        
                 // Calculating derived fields
                 const enterpriseToRevenue = calculateEnterpriseValueToRevenue(
                     financialMetrics.marketCap,
@@ -385,8 +389,24 @@ function calculateFinancials(financials, stockPrice, totalShares, beta, volume) 
         incomeTaxExpensesCheck: incomeTaxExpenses > 13 ? 1 : 0,
         betaCheck: beta !== undefined && beta >= 0.6 && beta <= 0.8 ? 1 : 0,
         priceVolumeCheck: priceVolume < 1000000 ? 1 : 0,
-        earningsYieldCheck: earningsYield !== 'N/A' && earningsYield > 6 ? 3 : 0
-    };
+        earningsYieldCheck: (() => {
+            if (earningsYield === 'N/A') {
+                return 0;
+            }
+        
+            const earningsYieldValue = parseFloat(earningsYield);
+        
+            if (earningsYieldValue >= 4) {
+                // Reward 3 base points + 2 points for each 1% above 4%
+                const rewardPoints = 3 + Math.floor((earningsYieldValue - 4) * 2);
+                return rewardPoints;
+            } else {
+                // Penalize: 3 base points - 2 points for each 1% below 4%
+                const penaltyPoints = 3 - Math.ceil((4 - earningsYieldValue) * 2);
+                return penaltyPoints;
+            }
+        })()
+        };
 
     const totalPasses = Object.values(passFailResults).reduce((sum, value) => sum + value, 0);
 

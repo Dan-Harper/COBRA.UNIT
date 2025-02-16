@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pythonBackend.mono_scraper import scraper_router
-from app.pythonBackend.compare_all_lookbacks_prices import router as lookbacks_router
+from mono_scraper import router as scraper_router
+from compare_all_lookbacks_prices import router as lookbacks_router
+from hash_password import router as hash_password_router
 
 app = FastAPI()
 
-# Add CORS middleware to allow cross-origin requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,11 +13,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(scraper_router, prefix="/scraper", tags=["Scraper"])
+app.include_router(scraper_router, tags=["Scraper"])
 
-app.include_router(lookbacks_router, prefix="/compare-lookbacks", tags=["Lookbacks"])
+app.include_router(lookbacks_router, tags=["Lookbacks"])
 
-# Run the app on port 8001
+app.include_router(hash_password_router, tags=["Authentication"])
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)

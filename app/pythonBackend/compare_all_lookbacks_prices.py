@@ -1,15 +1,21 @@
 from fastapi import APIRouter, HTTPException
-from app.pythonBackend.calculate_today_and_yesterday import calculate_today_and_yesterday_metrics
-from app.pythonBackend.compare_optimal_buy_with_all_lookbacks_prices import calculate_optimal_buy_with_short_lookbacks
+from calculate_today_and_yesterday import calculate_today_and_yesterday_metrics
+from compare_optimal_buy_with_all_lookbacks_prices import calculate_optimal_buy_with_short_lookbacks
+from pydantic import BaseModel
 
 router = APIRouter()
 
 
+class TickerRequest(BaseModel):
+    ticker: str
+
+
 @router.post("/compare-lookbacks", tags=["Lookbacks"])
-def compare_all_lookbacks(ticker):
+def compare_all_lookbacks(request: TickerRequest):
     """
     Compare optimal buy prices for today, yesterday, 7-day, and 14-day lookbacks.
     """
+    ticker = request.ticker
     # Calculate today and yesterday metrics
     today_yesterday_metrics = calculate_today_and_yesterday_metrics(ticker)
     if not today_yesterday_metrics:

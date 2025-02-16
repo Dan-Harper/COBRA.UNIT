@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
-from app.pythonBackend.calculate_likelihoods_prices import calculate_likelihoods
-from app.pythonBackend.fetch_historical_data_prices import fetch_historical_data
-from app.pythonBackend.fetch_price_data import fetch_hourly_data, fetch_today_and_yesterday_hourly
+from calculate_likelihoods_prices import calculate_likelihoods
+from fetch_historical_data_prices import fetch_historical_data
+from fetch_price_data import fetch_hourly_data, fetch_today_and_yesterday_hourly
 
 
 def calculate_optimal_buy_with_short_lookbacks(ticker, days):

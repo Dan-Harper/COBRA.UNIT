@@ -1,0 +1,9 @@
+{
+  "users": [
+    {
+      "email": "work.dan.harper@gmail.com",
+      "password": "$2b$12$Qlvq5rpIkgdUB07EMZEGzOJBB5gA9AHMINhNrAfWRDSGrZpcVXFGi",
+      "role": "admin"
+    }
+  ]
+}

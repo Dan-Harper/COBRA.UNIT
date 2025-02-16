@@ -1,5 +1,5 @@
-from app.pythonBackend.calculate_likelihoods_prices import calculate_likelihoods
-from app.pythonBackend.fetch_price_data import fetch_today_and_yesterday_hourly
+from calculate_likelihoods_prices import calculate_likelihoods
+from fetch_price_data import fetch_today_and_yesterday_hourly
 
 
 def calculate_today_and_yesterday_metrics(ticker, target_likelihoods=[85, 90]):

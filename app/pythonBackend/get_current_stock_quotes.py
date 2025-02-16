@@ -1,5 +1,5 @@
 import requests
-from config import ALPACA_API_KEY, ALPACA_API_SECRET
+from config import APCA_API_KEY, APCA_API_SECRET
 
 
 def get_stock_quotes(ticker):
@@ -7,8 +7,9 @@ def get_stock_quotes(ticker):
     endpoint = f"{base_url}/stocks/{ticker}/quotes/latest"
 
     headers = {
-        "ALPACA-API-KEY-ID": ALPACA_API_KEY,
-        "ALPACA-API-SECRET-KEY": ALPACA_API_SECRET,
+        "accept": "application/json",
+        "APCA-API-KEY-ID": APCA_API_KEY,
+        "APCA-API-SECRET-KEY": APCA_API_SECRET,
     }
 
     try:

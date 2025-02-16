@@ -7,10 +7,14 @@ const pythonBackendApi = process.env.PUBLIC_PYTHON_BACKEND_API || "http://localh
 
 const BackendMicroservicePage = () => {
   const [inputValue, setInputValue] = useState("");
-  const [tickers, setTickers] = useState(""); // Store tickers as a single string
+  const [tickers, setTickers] = useState("");
   const [tableData, setTableData] = useState([]);
   const [csvData, setCsvData] = useState('');
- 
+  const [password, setPassword] = useState("");
+  const [hashedPassword, setHashedPassword] = useState("");
+  const [ticker, setTicker] = useState("");
+  const [lookbacksResult, setLookbacksResult] = useState("");
+
   const styles: Record<string, CSSProperties> = {
     title: {
       fontSize: "2rem",
@@ -45,6 +49,65 @@ const BackendMicroservicePage = () => {
       borderRadius: "5px",
       marginTop: "10px",
     },
+    link: {
+      display: "block",
+      textAlign: "center",
+      fontSize: "1.5rem",
+      color: "#007bff",
+      textDecoration: "underline",
+      fontWeight: "bold",
+      marginBottom: "20px",
+    },
+  };
+
+  const handlePasswordChange = (e) => {
+    setPassword(e.target.value);
+  };
+
+  const handlePasswordHashing = async (e) => {
+    e.preventDefault();
+    try {
+      console.log("Calling Password Hash API:", `${pythonBackendApi}/hash-password`);
+      const response = await fetch(`${pythonBackendApi}/hash-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setHashedPassword(data.hashed_password); // Store hashed password in state
+      } else {
+        console.error("Error hashing password:", response.statusText);
+      }
+    } catch (error) {
+      console.error("Error hashing password:", error);
+    }
+  };
+
+  const handleTickerChange = (e) => {
+    setTicker(e.target.value);
+  };
+
+  const handleCompareLookbacks = async (e) => {
+    e.preventDefault();
+    try {
+      console.log("Calling Compare Lookbacks API:", `${pythonBackendApi}/compare-lookbacks`);
+      const response = await fetch(`${pythonBackendApi}/compare-lookbacks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setLookbacksResult(JSON.stringify(data, null, 2)); // Format JSON for display
+      } else {
+        console.error("Error fetching lookbacks data:", response.statusText);
+      }
+    } catch (error) {
+      console.error("Error fetching lookbacks data:", error);
+    }
   };
 
   const handleInputChange = (e) => {
@@ -126,6 +189,16 @@ const BackendMicroservicePage = () => {
 
   return (
     <section id="backendmicroservice" className="pt-16 md:pt-20 lg:pt-28">
+      <h1 style={styles.title}>PQR Technical Document</h1>
+      <a 
+        href="https://docs.google.com/document/d/1UIe2nRIo6l14IjHAFvFOoj8VAlo474KQgGPuX_zicsE/edit?tab=t.0" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        style={styles.link}
+      >
+        PQR Technical Document
+      </a>
+      
       <h1 style={styles.title}>PQR Scrapers</h1>
       <form onSubmit={handleScraperSubmit} style={styles.spacing}>
         <button type="submit" style={styles.button}>
@@ -182,6 +255,50 @@ const BackendMicroservicePage = () => {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      <h1 style={styles.title}>Compare Lookbacks</h1>
+      <form onSubmit={handleCompareLookbacks} style={styles.spacing}>
+        <label htmlFor="tickerInput">Enter Stock Ticker:</label>
+        <input
+          type="text"
+          id="tickerInput"
+          value={ticker}
+          onChange={handleTickerChange}
+          style={styles.input}
+        />
+        <button type="submit" style={styles.button}>
+          Compare Lookbacks
+        </button>
+      </form>
+
+      {lookbacksResult && (
+        <div style={styles.responseBox}>
+          <strong>Lookbacks Result:</strong>
+          <pre>{lookbacksResult}</pre>
+        </div>
+      )}
+
+      <h1 style={styles.title}>Password Hash Feature</h1>
+      <form onSubmit={handlePasswordHashing} style={styles.spacing}>
+        <label htmlFor="passwordInput">Password:</label>
+        <input
+          type="password"
+          id="passwordInput"
+          value={password}
+          onChange={handlePasswordChange}
+          style={styles.input}
+        />
+        <button type="submit" style={styles.button}>
+          Hash Password
+        </button>
+      </form>
+
+      {hashedPassword && (
+        <div style={styles.responseBox}>
+          <strong>Hashed Password:</strong>
+          <p>{hashedPassword}</p>
         </div>
       )}
     </section>
