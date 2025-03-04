@@ -285,16 +285,30 @@ app.post('/api/processJSON', async (req, res) => {
     
         
 
-        // Write the CSV content to a file
-        const outputFilePath = 'C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/!README/pqrOutput.csv';
+        const getOutputFilePath = (basePath, baseFileName) => {
+            let counter = 1;
+            let outputFilePath = `${basePath}/${baseFileName}${counter}.csv`;
+        
+            while (fs.existsSync(outputFilePath)) {
+                counter++;
+                outputFilePath = `${basePath}/${baseFileName}${counter}.csv`;
+            }
+        
+            return outputFilePath;
+        };
+        
+        // Inside your existing code, replace the static file path with the dynamic one
+        
+        const outputFilePath = getOutputFilePath('C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/!README/pqr-backend-output-files', 'pqrOutput');
+        
         fs.writeFile(outputFilePath, csvContent, async (err) => {
             if (err) {
                 console.error("Error writing file:", err);
                 res.status(500).send('Error writing CSV file');
                 return;
             }
-
-            console.log('CSV written.');
+        
+            console.log(`CSV written to ${outputFilePath}`);
             await sortAndRewriteCSV(outputFilePath);
             fs.readFile(outputFilePath, 'utf8', (err, data) => {
                 if (err) {
