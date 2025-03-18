@@ -1,0 +1,177 @@
+
+
+
+There is a column called debtToEquity, we want to move this column before the grossMarginCheck1 column:
+
+import os
+import glob
+import csv
+from openpyxl import Workbook
+from openpyxl.styles import PatternFill
+
+# Define the folder where the CSV files are located
+output_folder = "C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/!README/pqr-backend-output-files"
+final_output_file = os.path.join(output_folder, "pqrFinalOutput.xlsx")
+
+# List of pass/fail headers in the desired order
+passFailHeaders = [
+    "grossMarginCheck1",
+    "grossMarginCheck2",
+    "netProfitMarginCheck1",
+    "netProfitMarginCheck2",
+    "peTimesPriceToBookRatioCheck",
+    "marketCapCheck",
+    "currentRatioCheck",
+    "ROACheck",
+    "returnOnEquityCheck",
+    "ROICCheck",
+    "researchAndDevelopmentCheck",
+    "incomeTaxExpensesCheck",
+    "betaCheck",
+    "priceVolumeCheck",
+    "earningsYieldCheck"
+]
+
+# Function to get all pqrOutput files (sorted)
+def get_output_files():
+    return sorted(glob.glob(os.path.join(output_folder, "pqrOutput*.csv")))
+
+# Step 1: Collect all unique headers and reorder them properly
+def get_master_header(output_files):
+    master_header = set()
+
+    for file in output_files:
+        with open(file, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            header = next(reader, None)
+            if header:
+                master_header.update(header)
+
+    master_header = sorted(master_header)
+
+    # Ensure "Ticker" is always first
+    if "Ticker" in master_header:
+        master_header.remove("Ticker")
+    ordered_header = ["Ticker"]
+
+    # Separate headers into groups
+    data_headers = [col for col in master_header if col not in passFailHeaders and col != "totalPasses"]
+    pass_fail_headers_in_master = [col for col in passFailHeaders if col in master_header]
+
+    # Ensure "totalPasses" is last
+    if "totalPasses" in master_header:
+        master_header.remove("totalPasses")
+
+    ordered_header.extend(data_headers)  # Other columns first
+    ordered_header.extend(pass_fail_headers_in_master)  # Pass/fail headers in order
+    ordered_header.append("totalPasses")  # "totalPasses" last
+
+    return ordered_header
+
+# Helper function to safely convert numbers
+def parse_number(value):
+    try:
+        return int(value)  
+    except ValueError:
+        try:
+            return float(value)  
+        except ValueError:
+            return float('-inf')  
+
+# Step 2: Align, merge, filter, and sort data by "totalPasses" in descending order
+def align_and_write_data(output_files, master_header):
+    all_rows = []  # Store all valid rows for sorting
+
+    for file in output_files:
+        print(f"Processing file: {file}")
+
+        with open(file, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+
+            if not rows:
+                continue
+
+            file_header = rows[0]  
+            data_rows = rows[1:]  
+
+            # Create a mapping of column indices for current file
+            header_index_map = {col: idx for idx, col in enumerate(file_header)}
+
+            # Ensure necessary indices exist
+            try:
+                gm_index = master_header.index("grossMarginCheck1")
+                np_index = master_header.index("netProfitMarginCheck1")
+                pe_index = master_header.index("peTimesPriceToBookRatioCheck")
+                roe_index = master_header.index("returnOnEquityCheck")
+                beta_index = master_header.index("betaCheck")
+            except ValueError:
+                continue  # Skip if any required columns are missing
+
+            # Process rows, filtering invalid ones
+            for row in data_rows:
+                aligned_row = [''] * len(master_header)  
+                for col_name, idx in header_index_map.items():
+                    if col_name in master_header and idx < len(row):  
+                        aligned_row[master_header.index(col_name)] = row[idx]
+
+                # Convert values to numbers
+                gm_value = parse_number(aligned_row[gm_index])
+                np_value = parse_number(aligned_row[np_index])
+                pe_value = parse_number(aligned_row[pe_index])
+                roe_value = parse_number(aligned_row[roe_index])
+                beta_value = parse_number(aligned_row[beta_index])
+
+                # DELETE ROWS BASED ON CONDITIONS
+                if pe_value == 0:  
+                    continue  # Remove row if peTimesPriceToBookRatioCheck is 0
+
+                if gm_value == 0 and np_value == 0:  
+                    continue  # Remove row if both grossMarginCheck1 and netProfitMarginCheck1 are 0
+
+                if roe_value == 0 and beta_value == 0:  
+                    continue  # Remove row if both returnOnEquityCheck and betaCheck are 0
+
+                all_rows.append(aligned_row)  
+
+    # Sort rows by totalPasses (handle negatives and non-numeric values correctly)
+    total_passes_index = master_header.index("totalPasses")
+    all_rows.sort(key=lambda x: parse_number(x[total_passes_index]), reverse=True)
+
+    # Write final output as an Excel file with red highlights
+    wb = Workbook()
+    ws = wb.active
+    ws.append(master_header)  
+
+    red_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+
+    for row in all_rows:
+        excel_row = []
+        for i, cell in enumerate(row):
+            excel_row.append(cell)
+
+        # Append row to Excel sheet
+        ws.append(excel_row)
+
+        # Apply red highlight if conditions are met
+        if parse_number(row[gm_index]) == 0:
+            ws.cell(row=ws.max_row, column=gm_index + 1).fill = red_fill
+        if parse_number(row[np_index]) == 0:
+            ws.cell(row=ws.max_row, column=np_index + 1).fill = red_fill
+
+    wb.save(final_output_file)
+    print(f"Data has been successfully written to {final_output_file}")
+
+if __name__ == "__main__":
+    output_files = get_output_files()
+
+    if not output_files:
+        print("No files found.")
+    else:
+        master_header = get_master_header(output_files)  
+        align_and_write_data(output_files, master_header)  
+		
+		
+		
+		
+		

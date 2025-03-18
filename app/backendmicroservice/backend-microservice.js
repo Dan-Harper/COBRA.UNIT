@@ -396,7 +396,7 @@ function calculateFinancials(financials, stockPrice, totalShares, beta, volume) 
         peTimesPriceToBookRatioCheck: peTimesPriceToBookRatio < 22.5 ? 1 : 0,
         marketCapCheck: marketCap > 350000000 ? -10 : 0,
         currentRatioCheck: currentRatio > 1.5 ? 1 : 0,
-        ROACheck: ROA > 20 ? 1 : 0,
+        ROACheck: ROA > 9 ? 1 : 0,
         returnOnEquityCheck: returnOnEquity > 15 ? 1 : 0,
         ROICCheck: ROIC > 15 ? 1 : 0,
         researchAndDevelopmentCheck: researchAndDevelopment <= 30 ? 1 : 0,
