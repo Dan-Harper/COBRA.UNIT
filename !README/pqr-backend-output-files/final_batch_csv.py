@@ -4,9 +4,14 @@ import csv
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill
 import math
+import sys
+
+# Add project root to path to import config
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
+from path_config import PQR_BACKEND_OUTPUT_DIR
 
 # Define file paths
-output_folder = "C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/!README/pqr-backend-output-files"
+output_folder = PQR_BACKEND_OUTPUT_DIR
 final_output_file = os.path.join(output_folder, "pqrFinalOutput.xlsx")
 
 # List of pass/fail headers in the desired order

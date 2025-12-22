@@ -6,6 +6,11 @@ from dataclasses import dataclass
 import re
 import requests
 import lxml.html
+import sys
+
+# Add project root to path to import config
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
+from path_config import MONO_SCRAPER_OUTPUT_DIR
 
 router = APIRouter()
 
@@ -136,7 +141,7 @@ def scrape_data():
             return PlainTextResponse("No data collected.", media_type="text/plain")
 
         # Write data to a CSV file
-        output_dir = r"C:\Users\Wanderer\Documents\OSU-GT-STANFORD\COBRA.UNIT\!README\mono-scraper-output"
+        output_dir = MONO_SCRAPER_OUTPUT_DIR
         os.makedirs(output_dir, exist_ok=True)  # Ensure the directory exists
         file_path = os.path.join(output_dir, "pqrScraper.csv")
 

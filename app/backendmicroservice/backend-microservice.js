@@ -6,6 +6,8 @@ const parse = require('csv-parse/sync').parse;
 const stringify = require('csv-stringify/sync').stringify;
 const { spawn } = require('child_process');
 const yahooFinance = require('yahoo-finance2').default;
+const { BETA_FILTER_SCRIPT, PQR_BACKEND_OUTPUT_DIR, PQR_TICKERS_BATCH_DIR } = require('../../path-config');
+const path = require('path');
 
 let fetch;
 (async () => {
@@ -77,7 +79,7 @@ const fetchTotalShares = async (stockTicker) => {
 
 const getStockBetas = async (symbols) => {
     return new Promise((resolve, reject) => {
-        const process = spawn('python', ['C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/app/betaFilter/betaFilter.py', JSON.stringify(symbols)]);
+        const process = spawn('/usr/bin/python3', [BETA_FILTER_SCRIPT, JSON.stringify(symbols)]);
         let result = '';
         process.stdout.on('data', (data) => {
             result += data.toString();
@@ -298,8 +300,8 @@ app.post('/api/processJSON', async (req, res) => {
         };
         
         // Inside your existing code, replace the static file path with the dynamic one
-        
-        const outputFilePath = getOutputFilePath('C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/!README/pqr-backend-output-files', 'pqrOutput');
+
+        const outputFilePath = getOutputFilePath(PQR_BACKEND_OUTPUT_DIR, 'pqrOutput');
         
         fs.writeFile(outputFilePath, csvContent, async (err) => {
             if (err) {
@@ -505,6 +507,218 @@ async function sortAndRewriteCSV(filePath) {
         console.error('Failed to read, sort, or write the CSV:', error);
     }
 }
+
+// New endpoint to process stored tickers from batch files
+app.post('/api/processStoredTickers', async (req, res) => {
+    try {
+        console.log('Processing stored tickers from batch files...');
+
+        // Read all Stored_Tickers_Batch_*.txt files
+        const files = fs.readdirSync(PQR_TICKERS_BATCH_DIR)
+            .filter(file => file.startsWith('Stored_Tickers_Batch_') && file.endsWith('.txt'))
+            .sort((a, b) => {
+                const numA = parseInt(a.match(/\d+/)[0]);
+                const numB = parseInt(b.match(/\d+/)[0]);
+                return numA - numB;
+            });
+
+        if (files.length === 0) {
+            return res.status(404).json({ error: 'No stored ticker batch files found' });
+        }
+
+        console.log(`Found ${files.length} batch files to process`);
+
+        let allFetchedStockData = [];
+        let processedCount = 0;
+
+        // Process each batch file sequentially
+        for (const file of files) {
+            const filePath = path.join(PQR_TICKERS_BATCH_DIR, file);
+            const batchContent = fs.readFileSync(filePath, 'utf8');
+            const stocks = batchContent.split(',').map(stock => stock.trim().toUpperCase()).filter(s => s);
+
+            console.log(`Processing batch ${file} with ${stocks.length} tickers...`);
+
+            // Process stocks in this batch
+            const stockDataPromises = stocks.map(async (stock) => {
+                const stockData = await fetchStockData(stock);
+                if (!stockData) return null;
+
+                const stockPrice = await fetchStockPrice(stock);
+                const totalShares = await fetchTotalShares(stock);
+
+                if (stockData) {
+                    stockData.stock_price = stockPrice;
+                    stockData.total_shares = totalShares;
+                }
+                return stockData;
+            });
+
+            const batchResults = (await Promise.all(stockDataPromises)).filter(data => data);
+            allFetchedStockData.push(...batchResults);
+            processedCount += stocks.length;
+
+            console.log(`Completed batch ${file}. Total processed: ${processedCount}`);
+
+            // Add a small delay between batches to respect API rate limits
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        console.log(`Total stocks data fetched: ${allFetchedStockData.length}`);
+
+        // Get beta data for all stocks
+        const allStocks = allFetchedStockData.map(data => data.stockTicker);
+        const betaData = await getStockBetas(allStocks);
+
+        // Add Beta values to stock data
+        allFetchedStockData.forEach(data => {
+            const betaInfo = betaData.find(beta => beta.Stock === data.stockTicker);
+            if (betaInfo) {
+                data.beta = betaInfo.Beta;
+            } else {
+                data.beta = null;
+            }
+        });
+
+        // Generate CSV (same logic as /api/processJSON)
+        let headers = new Set(["Ticker"]);
+
+        let calculatedHeaders = [
+            "stockPrice", "totalShares", "grossMargin", "netProfitMargin", "peRatio",
+            "priceToBookRatio", "debtToEquity", "marketCap", "currentRatio",
+            "cashAndCashEquivalents", "ROA", "returnOnEquity", "ROIC",
+            "researchAndDevelopment", "incomeTaxExpenses", "beta", "quickRatio",
+            "enterpriseValue", "enterpriseToRevenue", "sector", "industry",
+            "volume", "quoteType", "priceVolume", "earningsYield"
+        ];
+
+        allFetchedStockData.forEach(data => {
+            if (data && data.financials) {
+                Object.keys(data.financials).forEach(section => {
+                    Object.keys(data.financials[section]).forEach(key => {
+                        headers.add(key);
+                    });
+                });
+            }
+        });
+
+        let passFailHeaders = [
+            "grossMarginCheck1", "grossMarginCheck2", "netProfitMarginCheck1",
+            "netProfitMarginCheck2", "peTimesPriceToBookRatioCheck", "marketCapCheck",
+            "currentRatioCheck", "ROACheck", "returnOnEquityCheck", "ROICCheck",
+            "researchAndDevelopmentCheck", "incomeTaxExpensesCheck", "betaCheck",
+            "priceVolumeCheck", "earningsYieldCheck"
+        ];
+
+        let csvHeaders = Array.from(headers).concat(calculatedHeaders).concat(passFailHeaders).concat(['totalPasses']);
+        let csvContent = csvHeaders.join(',') + '\n';
+
+        // Process each stock's data
+        allFetchedStockData.forEach(data => {
+            if (data) {
+                let rowData = [data.stockTicker]
+
+                const revenues = data.financials?.income_statement?.revenues?.value || 0;
+
+                const financialMetrics = calculateFinancials(data.financials, data.stock_price, data.total_shares, data.beta, data.volume);
+
+                if (financialMetrics.peTimesPriceToBookRatio === 0) {
+                    return;
+                }
+
+                const enterpriseToRevenue = calculateEnterpriseValueToRevenue(
+                    financialMetrics.marketCap,
+                    financialMetrics.longTermDebt,
+                    financialMetrics.cashAndCashEquivalents,
+                    revenues
+                );
+
+                const enterpriseValue = financialMetrics.marketCap + financialMetrics.longTermDebt - financialMetrics.cashAndCashEquivalents;
+
+                csvHeaders.forEach(header => {
+                    if (header === 'Ticker') {
+                        // Already handled
+                    } else if (header === 'stockPrice') {
+                        rowData.push(data.stock_price !== undefined ? data.stock_price : 'N/A');
+                    } else if (header === 'totalShares') {
+                        rowData.push(data.total_shares !== undefined ? data.total_shares : 'N/A');
+                    } else if (header === 'beta') {
+                        rowData.push(data.beta !== undefined ? data.beta : 'N/A');
+                    } else if (header === 'cashAndCashEquivalents') {
+                        rowData.push(financialMetrics.cashAndCashEquivalents !== undefined ? financialMetrics.cashAndCashEquivalents : 'N/A');
+                    } else if (header === 'enterpriseValue') {
+                        rowData.push(enterpriseValue !== 'N/A' ? enterpriseValue : 'N/A');
+                    } else if (header === 'enterpriseToRevenue') {
+                        rowData.push(enterpriseToRevenue !== 'N/A' ? enterpriseToRevenue : 'N/A');
+                    } else if (header === 'quickRatio') {
+                        rowData.push(data.quickRatio !== undefined ? data.quickRatio : 'N/A');
+                    } else if (['sector', 'industry', 'volume', 'quoteType'].includes(header)) {
+                        rowData.push(data[header] !== undefined ? data[header] : 'N/A');
+                    } else if (financialMetrics[header] !== undefined) {
+                        rowData.push(financialMetrics[header]);
+                    } else if (passFailHeaders.includes(header)) {
+                        const checkResult = financialMetrics.passFailResults[header];
+                        rowData.push(checkResult !== undefined ? checkResult : 'N/A');
+                    } else {
+                        let value = 'N/A';
+                        ['balance_sheet', 'income_statement', 'cash_flow_statement', 'comprehensive_income'].forEach(section => {
+                            if (data.financials && data.financials[section] && data.financials[section][header]) {
+                                const fieldValue = data.financials[section][header].hasOwnProperty('value') ? data.financials[section][header].value : data.financials[section][header];
+                                if (fieldValue !== undefined) {
+                                    value = fieldValue;
+                                }
+                            }
+                        });
+                        rowData.push(value);
+                    }
+                });
+                csvContent += stringify([rowData], { quoted: true });
+            }
+        });
+
+        const getOutputFilePath = (basePath, baseFileName) => {
+            let counter = 1;
+            let outputFilePath = `${basePath}/${baseFileName}${counter}.csv`;
+
+            while (fs.existsSync(outputFilePath)) {
+                counter++;
+                outputFilePath = `${basePath}/${baseFileName}${counter}.csv`;
+            }
+
+            return outputFilePath;
+        };
+
+        const outputFilePath = getOutputFilePath(PQR_BACKEND_OUTPUT_DIR, 'pqrOutput');
+
+        fs.writeFile(outputFilePath, csvContent, async (err) => {
+            if (err) {
+                console.error("Error writing file:", err);
+                res.status(500).send('Error writing CSV file');
+                return;
+            }
+
+            console.log(`CSV written to ${outputFilePath}`);
+            await sortAndRewriteCSV(outputFilePath);
+            fs.readFile(outputFilePath, 'utf8', (err, data) => {
+                if (err) {
+                    console.error("Error reading sorted CSV:", err);
+                    res.status(500).send('Error reading sorted CSV file');
+                    return;
+                }
+                console.log('CSV sorted and read successfully.');
+                res.json({
+                    message: 'Stored tickers processed successfully',
+                    data,
+                    totalProcessed: processedCount,
+                    totalBatches: files.length
+                });
+            });
+        });
+    } catch (error) {
+        console.error("Error during processing:", error);
+        res.status(500).send('Internal Server Error');
+    }
+});
 
 app.use(express.static('build'));
 

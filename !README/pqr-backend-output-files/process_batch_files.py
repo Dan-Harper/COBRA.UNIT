@@ -1,9 +1,14 @@
 import os
 import glob
 import requests
+import sys
+
+# Add project root to path to import config
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
+from path_config import PQR_TICKERS_BATCH_DIR
 
 # Define the folder containing the batch files
-batch_folder = "C:/Users/Wanderer/Documents/OSU-GT-STANFORD/COBRA.UNIT/!README/pqr-tickers-batch-files"
+batch_folder = PQR_TICKERS_BATCH_DIR
 
 # Define the backend service URL (replace with the actual URL of your backend service)
 backend_url = "http://localhost:5001/api/processJSON"

@@ -14,6 +14,8 @@ const BackendMicroservicePage = () => {
   const [hashedPassword, setHashedPassword] = useState("");
   const [ticker, setTicker] = useState("");
   const [lookbacksResult, setLookbacksResult] = useState("");
+  const [storedTickersResult, setStoredTickersResult] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const styles: Record<string, CSSProperties> = {
     title: {
@@ -144,6 +146,38 @@ const BackendMicroservicePage = () => {
     );
   };
 
+  const handleProcessStoredTickers = async (e) => {
+    e.preventDefault();
+    setIsProcessing(true);
+    setStoredTickersResult("Processing stored tickers... This may take several minutes.");
+
+    try {
+      console.log("Calling Process Stored Tickers API:", `${backendApi}/api/processStoredTickers`);
+      const response = await fetch(`${backendApi}/api/processStoredTickers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setStoredTickersResult(
+          `Success! Processed ${data.totalProcessed} tickers across ${data.totalBatches} batches.\n\nCSV Output:\n${data.data}`
+        );
+        const parsedData = parseCSV(data.data);
+        setTableData(parsedData);
+      } else {
+        const errorText = await response.text();
+        console.error("Error processing stored tickers:", response.statusText);
+        setStoredTickersResult(`Error: ${response.statusText}\n${errorText}`);
+      }
+    } catch (error) {
+      console.error("Error processing stored tickers:", error);
+      setStoredTickersResult(`Error: ${error.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const parseCSV = (csv) => {
     const lines = csv.split("\n").filter((line) => line.trim());
     const headers = lines[0].split(",").map((header) => header.trim());
@@ -215,6 +249,21 @@ const BackendMicroservicePage = () => {
               Copy Tickers
             </button>
           </div>
+        </div>
+      )}
+
+      <h1 style={styles.title}>Process Stored Tickers</h1>
+      <form onSubmit={handleProcessStoredTickers} style={styles.spacing}>
+        <button type="submit" style={styles.button} disabled={isProcessing}>
+          {isProcessing ? "Processing..." : "Process Stored Tickers from Batches"}
+        </button>
+      </form>
+      {storedTickersResult && (
+        <div style={styles.responseBox}>
+          <strong>Result:</strong>
+          <pre style={{ whiteSpace: 'pre-wrap', maxHeight: '400px', overflow: 'auto' }}>
+            {storedTickersResult}
+          </pre>
         </div>
       )}
 

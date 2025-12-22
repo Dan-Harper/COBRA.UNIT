@@ -2,6 +2,11 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime
 import os
+import sys
+
+# Add project root to path to import config
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
+from path_config import README_DIR
 
 
 def fetch_stock_data(ticker, start_date, end_date):
@@ -77,5 +82,5 @@ if __name__ == '__main__':
     new_ideas = ['MSFT', 'TSLA', 'NFLX']
     start_date = '2020-01-01'
     end_date = '2023-01-01'
-    save_path = r'C:\Users\Wanderer\Documents\OSU-GT-STANFORD\COBRA.UNIT\!README'
+    save_path = README_DIR
     get_and_save_correlations(current_ideas, new_ideas, start_date, end_date, save_path)
