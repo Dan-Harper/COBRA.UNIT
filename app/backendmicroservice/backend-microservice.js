@@ -233,6 +233,11 @@ const generateCSV = (fetchedStockData) => {
                 return;  // Skip this row: peTimesPriceToBookRatio is 0 or >= 25
             }
 
+            // Skip rows where priceToBookRatio is less than 0
+            if (financialMetrics.priceToBookRatio < 0) {
+                return;
+            }
+
             // Calculating derived fields
             const enterpriseToRevenue = calculateEnterpriseValueToRevenue(
                 financialMetrics.marketCap,
