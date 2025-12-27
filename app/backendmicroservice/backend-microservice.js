@@ -65,15 +65,21 @@ const fetchStockPrice = async (stockTicker) => {
     }
 };
 
-const fetchTotalShares = async (stockTicker) => {
+const fetchTickerDetails = async (stockTicker) => {
     const tickerDetailsEndpoint = `https://api.polygon.io/v3/reference/tickers/${stockTicker}?apiKey=${apiKey}`;
     try {
         const response = await fetch(tickerDetailsEndpoint);
         const data = await response.json();
-        return data.results ? data.results.weighted_shares_outstanding : null;
+        return {
+            weighted_shares_outstanding: data.results ? data.results.weighted_shares_outstanding : null,
+            total_employees: data.results ? (data.results.total_employees || 'N/A') : 'N/A'
+        };
     } catch (error) {
-        console.error("Error fetching total shares:", error);
-        return null;
+        console.error("Error fetching ticker details:", error);
+        return {
+            weighted_shares_outstanding: null,
+            total_employees: 'N/A'
+        };
     }
 };
 
@@ -105,6 +111,192 @@ const getStockBetas = async (symbols) => {
     });
 };
 
+// Shared function to process stocks - fetches all data and adds betas
+const processStocks = async (stocks) => {
+    const stockDataPromises = stocks.map(async (stock) => {
+        const stockData = await fetchStockData(stock);
+        if (!stockData) return null;
+        console.log(`Fetched stock data for ${stock}:`, stockData);
+
+        const stockPrice = await fetchStockPrice(stock);
+        console.log(`Stock price for ${stock}:`, stockPrice);
+
+        const tickerDetails = await fetchTickerDetails(stock);
+        console.log(`Ticker details for ${stock}:`, tickerDetails);
+
+        if (stockData) {
+            stockData.stock_price = stockPrice;
+            stockData.total_shares = tickerDetails.weighted_shares_outstanding;
+            stockData.total_employees = tickerDetails.total_employees;
+        }
+        return stockData;
+    });
+
+    const fetchedStockData = (await Promise.all(stockDataPromises)).filter(data => data);
+    console.log("Fetched stock data:", fetchedStockData);
+
+    const betaData = await getStockBetas(stocks);
+
+    // Add Beta values to stock data
+    fetchedStockData.forEach(data => {
+        const betaInfo = betaData.find(beta => beta.Stock === data.stockTicker);
+        if (betaInfo) {
+            data.beta = betaInfo.Beta;
+        } else {
+            data.beta = null;
+        }
+    });
+
+    return fetchedStockData;
+};
+
+// Shared function to generate CSV from fetched stock data
+const generateCSV = (fetchedStockData) => {
+    let headers = new Set(["Ticker"]);
+
+    let calculatedHeaders = [
+        "stockPrice",
+        "totalShares",
+        "totalEmployees",
+        "grossMargin",
+        "netProfitMargin",
+        "peRatio",
+        "priceToBookRatio",
+        "debtToEquity",
+        "marketCap",
+        "currentRatio",
+        "cashAndCashEquivalents",
+        "ROA",
+        "returnOnEquity",
+        "ROIC",
+        "researchAndDevelopment",
+        "incomeTaxExpenses",
+        "beta",
+        "quickRatio",
+        "enterpriseValue",
+        "enterpriseToRevenue",
+        // yahoo finance variables below
+        "sector",
+        "industry",
+        "volume",
+        "quoteType",
+        "priceVolume",
+        "earningsYield",
+        "profitPerEmployee"
+    ];
+
+    // Generate headers from the fetched data for dynamic financial data
+    fetchedStockData.forEach(data => {
+        if (data && data.financials) {
+            Object.keys(data.financials).forEach(section => {
+                Object.keys(data.financials[section]).forEach(key => {
+                    headers.add(key);
+                });
+            });
+        } else {
+            console.log(`Financials not available for a stock, skipping header generation for this stock.`);
+        }
+    });
+
+    let passFailHeaders = [
+        "grossMarginCheck1",
+        "grossMarginCheck2",
+        "netProfitMarginCheck1",
+        "netProfitMarginCheck2",
+        "peTimesPriceToBookRatioCheck",
+        "marketCapCheck",
+        "currentRatioCheck",
+        "ROACheck",
+        "returnOnEquityCheck",
+        "ROICCheck",
+        "researchAndDevelopmentCheck",
+        "incomeTaxExpensesCheck",
+        "betaCheck",
+        "priceVolumeCheck",
+        "earningsYieldCheck",
+        "profitPerEmployeeCheck"
+    ];
+
+    let csvHeaders = Array.from(headers).concat(calculatedHeaders).concat(passFailHeaders).concat(['totalPasses']);
+    let csvContent = csvHeaders.join(',') + '\n';
+
+    // Process each stock's data
+    fetchedStockData.forEach(data => {
+        if (data) {
+            let rowData = [data.stockTicker]
+
+            const revenues = data.financials?.income_statement?.revenues?.value || 0;
+
+            const financialMetrics = calculateFinancials(data.financials, data.stock_price, data.total_shares, data.beta, data.volume, data.total_employees);
+
+            if (financialMetrics.peTimesPriceToBookRatio === 0 || financialMetrics.passFailResults.peTimesPriceToBookRatioCheck === 0) {
+                return;  // Skip this row: peTimesPriceToBookRatio is 0 or >= 25
+            }
+
+            // Calculating derived fields
+            const enterpriseToRevenue = calculateEnterpriseValueToRevenue(
+                financialMetrics.marketCap,
+                financialMetrics.longTermDebt,
+                financialMetrics.cashAndCashEquivalents,
+                revenues
+            );
+
+            const enterpriseValue = financialMetrics.marketCap + financialMetrics.longTermDebt - financialMetrics.cashAndCashEquivalents;
+
+            // Append financial data for each header
+            csvHeaders.forEach(header => {
+                if (header === 'Ticker') {
+                    // Ticker has already been handled
+                } else if (header === 'stockPrice') {
+                    rowData.push(data.stock_price !== undefined ? data.stock_price : 'N/A');
+                } else if (header === 'totalShares') {
+                    rowData.push(data.total_shares !== undefined ? data.total_shares : 'N/A');
+                } else if (header === 'totalEmployees') {
+                    rowData.push(data.total_employees !== undefined ? data.total_employees : 'N/A');
+                } else if (header === 'beta') {
+                    rowData.push(data.beta !== undefined ? data.beta : 'N/A');
+                } else if (header === 'cashAndCashEquivalents') {
+                    rowData.push(financialMetrics.cashAndCashEquivalents !== undefined ? financialMetrics.cashAndCashEquivalents : 'N/A');
+                } else if (header === 'enterpriseValue') {
+                    rowData.push(enterpriseValue !== 'N/A' ? enterpriseValue : 'N/A');
+                } else if (header === 'enterpriseToRevenue') {
+                    rowData.push(enterpriseToRevenue !== 'N/A' ? enterpriseToRevenue : 'N/A');
+                } else if (header === 'quickRatio') {
+                    rowData.push(data.quickRatio !== undefined ? data.quickRatio : 'N/A');
+                } else if (['sector', 'industry', 'volume', 'quoteType'].includes(header)) {
+                    rowData.push(data[header] !== undefined ? data[header] : 'N/A');
+                } else if (financialMetrics[header] !== undefined) {
+                    rowData.push(financialMetrics[header]);
+                } else if (passFailHeaders.includes(header)) {
+                    // New condition to handle pass/fail check results
+                    // Directly append the result of the check from the passFailResults object
+                    const checkResult = financialMetrics.passFailResults[header];
+                    rowData.push(checkResult !== undefined ? checkResult : 'N/A');
+                } else {
+                    // Attempt to find the value in financial data or default to 'N/A'
+                    let value = 'N/A';
+                    ['balance_sheet', 'income_statement', 'cash_flow_statement', 'comprehensive_income'].forEach(section => {
+                        if (data.financials && data.financials[section] && data.financials[section][header]) {
+                            // Assume each property might be an object with a 'value' key or a direct numeric/string value
+                            const fieldValue = data.financials[section][header].hasOwnProperty('value') ? data.financials[section][header].value : data.financials[section][header];
+                            if (fieldValue !== undefined) {
+                                value = fieldValue;
+                            }
+                        }
+                    });
+                    rowData.push(value);
+                }
+            });
+            console.log(`Row data for ${data.stockTicker}:`, rowData.join(','));
+            csvContent += stringify([rowData], { quoted: true });
+        } else {
+            console.log(`No data available for one of the stocks.`);
+        }
+    });
+
+    return csvContent;
+};
+
 app.post('/api/processJSON', async (req, res) => {
 
     try {
@@ -112,180 +304,8 @@ app.post('/api/processJSON', async (req, res) => {
         const requestData = req.body;
         const stocks = requestData.stocks.split(',').map(stock => stock.trim().toUpperCase());
 
-        const stockDataPromises = stocks.map(async (stock) => {
-            const stockData = await fetchStockData(stock);
-            if (!stockData) return null;
-            console.log(`Fetched stock data for ${stock}:`, stockData);
-            console.log(`Stock ticker data for ${stock}:`, stockData.stockTicker)
-
-            const stockPrice = await fetchStockPrice(stock);
-            console.log(`Stock price for ${stock}:`, stockPrice);
-
-            const totalShares = await fetchTotalShares(stock);
-            console.log(`Total shares for ${stock}:`, totalShares);
-
-            if (stockData) {
-                stockData.stock_price = stockPrice;
-                stockData.total_shares = totalShares;
-            }
-            return stockData;
-        });
-
-        const fetchedStockData = (await Promise.all(stockDataPromises)).filter(data => data);        
-       
-        console.log("Fetched stock data:", fetchedStockData);
-
-        const betaData = await getStockBetas(stocks);
-
-        // Add Beta values to stock data
-        fetchedStockData.forEach(data => {
-            const betaInfo = betaData.find(beta => beta.Stock === data.stockTicker);
-            if (betaInfo) {
-                data.beta = betaInfo.Beta;
-            } else {
-                data.beta = null; 
-                // Handle case where beta is not available
-            }
-        });
-
-        let headers = new Set(["Ticker"]);
-
-        let calculatedHeaders = [
-            "stockPrice",
-            "totalShares",
-            "grossMargin",
-            "netProfitMargin",
-            "peRatio",
-            "priceToBookRatio",
-            "debtToEquity",
-            "marketCap",
-            "currentRatio",
-            "cashAndCashEquivalents",
-            "ROA",
-            "returnOnEquity",
-            "ROIC",
-            "researchAndDevelopment",
-            "incomeTaxExpenses",
-            "beta",
-            "quickRatio",
-            "enterpriseValue",
-            "enterpriseToRevenue",
-            // yahoo finance variables below
-            "sector",
-            "industry",
-            "volume",
-            "quoteType",
-            "priceVolume",
-            "earningsYield"
-        ];
-
-        // Generate headers from the fetched data for dynamic financial data
-        fetchedStockData.forEach(data => {
-            if (data && data.financials) {
-                Object.keys(data.financials).forEach(section => {
-                    Object.keys(data.financials[section]).forEach(key => {
-                        headers.add(key);
-                    });
-                });
-            } else {
-                console.log(`Financials not available for a stock, skipping header generation for this stock.`);
-            }
-        });
-
-        let passFailHeaders = [
-            "grossMarginCheck1",
-            "grossMarginCheck2",
-            "netProfitMarginCheck1",
-            "netProfitMarginCheck2",
-            "peTimesPriceToBookRatioCheck",
-            "marketCapCheck",
-            "currentRatioCheck",
-            "ROACheck",
-            "returnOnEquityCheck",
-            "ROICCheck",
-            "researchAndDevelopmentCheck",
-            "incomeTaxExpensesCheck",
-            "betaCheck",
-            "priceVolumeCheck",
-            "earningsYieldCheck"
-        ];
-
-        let csvHeaders = Array.from(headers).concat(calculatedHeaders).concat(passFailHeaders).concat(['totalPasses']);
-        let csvContent = csvHeaders.join(',') + '\n';
-        
-        // Process each stock's data
-        fetchedStockData.forEach(data => {
-            if (data) {
-                let rowData = [data.stockTicker]
-
-                const revenues = data.financials?.income_statement?.revenues?.value || 0;
-                
-                const financialMetrics = calculateFinancials(data.financials, data.stock_price, data.total_shares, data.beta, data.volume);
-
-                if (financialMetrics.peTimesPriceToBookRatio === 0) {
-                    return;  // Skip this because peTimesPriceToBookRatio is 0
-                }
-        
-                // Calculating derived fields
-                const enterpriseToRevenue = calculateEnterpriseValueToRevenue(
-                    financialMetrics.marketCap,
-                    financialMetrics.longTermDebt,
-                    financialMetrics.cashAndCashEquivalents,
-                    revenues
-                );
-                
-                const enterpriseValue = financialMetrics.marketCap + financialMetrics.longTermDebt - financialMetrics.cashAndCashEquivalents;
-                
-                // Append financial data for each header
-                csvHeaders.forEach(header => {
-                    if (header === 'Ticker') {
-                        // Ticker has already been handled
-                    } else if (header === 'stockPrice') {
-                        rowData.push(data.stock_price !== undefined ? data.stock_price : 'N/A');
-                    } else if (header === 'totalShares') {
-                        rowData.push(data.total_shares !== undefined ? data.total_shares : 'N/A');
-                    } else if (header === 'beta') {
-                        rowData.push(data.beta !== undefined ? data.beta : 'N/A');
-                    } else if (header === 'cashAndCashEquivalents') {
-                        rowData.push(financialMetrics.cashAndCashEquivalents !== undefined ? financialMetrics.cashAndCashEquivalents : 'N/A');
-                    } else if (header === 'enterpriseValue') {
-                        rowData.push(enterpriseValue !== 'N/A' ? enterpriseValue : 'N/A');
-                    } else if (header === 'enterpriseToRevenue') {
-                        rowData.push(enterpriseToRevenue !== 'N/A' ? enterpriseToRevenue : 'N/A');
-                    } else if (header === 'quickRatio') {
-                        rowData.push(data.quickRatio !== undefined ? data.quickRatio : 'N/A');
-                    } else if (['sector', 'industry', 'volume', 'quoteType'].includes(header)) {
-                            rowData.push(data[header] !== undefined ? data[header] : 'N/A');
-                    }  else if (financialMetrics[header] !== undefined) {
-                        rowData.push(financialMetrics[header]);
-                    } else if (passFailHeaders.includes(header)) {
-                        // New condition to handle pass/fail check results
-                        // Directly append the result of the check from the passFailResults object
-                        const checkResult = financialMetrics.passFailResults[header];
-                        rowData.push(checkResult !== undefined ? checkResult : 'N/A');
-                    } else {
-                        // Attempt to find the value in financial data or default to 'N/A'
-                        let value = 'N/A';
-                        ['balance_sheet', 'income_statement', 'cash_flow_statement', 'comprehensive_income'].forEach(section => {
-                            if (data.financials && data.financials[section] && data.financials[section][header]) {
-                                // Assume each property might be an object with a 'value' key or a direct numeric/string value
-                                const fieldValue = data.financials[section][header].hasOwnProperty('value') ? data.financials[section][header].value : data.financials[section][header];
-                                if (fieldValue !== undefined) {
-                                    value = fieldValue;
-                                }
-                            }
-                        });
-                        rowData.push(value);
-                    }
-                });
-                console.log(`Row data for ${data.stockTicker}:`, rowData.join(','));
-                csvContent += stringify([rowData], { quoted: true });
-            } else {
-                console.log(`No data available for one of the stocks.`);
-            }
-        });
-    
-        
+        const fetchedStockData = await processStocks(stocks);
+        const csvContent = generateCSV(fetchedStockData);
 
         const getOutputFilePath = (basePath, baseFileName) => {
             let counter = 1;
@@ -329,7 +349,7 @@ app.post('/api/processJSON', async (req, res) => {
 });
 
 
-function calculateFinancials(financials, stockPrice, totalShares, beta, volume) {
+function calculateFinancials(financials, stockPrice, totalShares, beta, volume, totalEmployees) {
     
     console.log("Financial data received:", financials);
 
@@ -388,6 +408,7 @@ function calculateFinancials(financials, stockPrice, totalShares, beta, volume) 
     // this calculates the tax rate, however how to confirm they are paying their fair share?
     const incomeTaxExpenses = (income_tax_expense_benefit / income_loss_from_continuing_operations_before_tax) * 100;
     const earningsYield = stockPrice > 0 && dilutedEarningsPerShare > 0 ? (dilutedEarningsPerShare / stockPrice) * 100 : 'N/A';
+    const profitPerEmployee = (totalEmployees > 0 && totalEmployees !== 'N/A' && netIncomeLoss !== undefined) ? netIncomeLoss / totalEmployees : 'N/A';
 
     // Pass/Fail checks
     const passFailResults = {
@@ -395,7 +416,7 @@ function calculateFinancials(financials, stockPrice, totalShares, beta, volume) 
         grossMarginCheck2: grossMargin > 0.4 ? 1 : 0,
         netProfitMarginCheck1: netProfitMargin > 10 ? 1 : 0,
         netProfitMarginCheck2: netProfitMargin > 20 ? 1 : 0,
-        peTimesPriceToBookRatioCheck: peTimesPriceToBookRatio < 22.5 ? 1 : 0,
+        peTimesPriceToBookRatioCheck: peTimesPriceToBookRatio < 25 ? 1 : 0,
         marketCapCheck: marketCap > 350000000 ? -10 : 0,
         currentRatioCheck: currentRatio > 1.5 ? 1 : 0,
         ROACheck: ROA > 9 ? 1 : 0,
@@ -409,9 +430,9 @@ function calculateFinancials(financials, stockPrice, totalShares, beta, volume) 
             if (earningsYield === 'N/A') {
                 return 0;
             }
-        
+
             const earningsYieldValue = parseFloat(earningsYield);
-        
+
             if (earningsYieldValue >= 4) {
                 // Reward 3 base points + 2 points for each 1% above 4%
                 const rewardPoints = 3 + Math.floor((earningsYieldValue - 4) * 2);
@@ -421,6 +442,14 @@ function calculateFinancials(financials, stockPrice, totalShares, beta, volume) 
                 const penaltyPoints = 3 - Math.ceil((4 - earningsYieldValue) * 2);
                 return penaltyPoints;
             }
+        })(),
+        profitPerEmployeeCheck: (() => {
+            if (profitPerEmployee === 'N/A' || typeof profitPerEmployee !== 'number') {
+                return 0;
+            }
+            // Scaled score: (atan(profitPerEmployee / 100000) / PI) * 6
+            // This rewards high values with diminishing returns, roughly -3 to +3
+            return (Math.atan(profitPerEmployee / 100000) / Math.PI) * 6;
         })()
         };
 
@@ -452,6 +481,7 @@ function calculateFinancials(financials, stockPrice, totalShares, beta, volume) 
         //capexMargin
         priceVolume,
         earningsYield: earningsYield !== 'N/A' ? `${earningsYield.toFixed(2)}%` : 'N/A',
+        profitPerEmployee,
         passFailResults,
         totalPasses
     };
@@ -481,7 +511,7 @@ const calculateEnterpriseValueToRevenue = (marketCap, longTermDebt, cashAndCashE
     return revenues > 0 ? enterpriseValue / revenues : 'N/A';
 };
 
-// Function to read, sort, and rewrite the CSV
+// Function to read, sort, filter bottom 25%, and rewrite the CSV
 async function sortAndRewriteCSV(filePath) {
     try {
         fs.readFile(filePath, 'utf8', (err, csvData) => {
@@ -495,12 +525,16 @@ async function sortAndRewriteCSV(filePath) {
 
             records.sort((a, b) => Number(b.totalPasses) - Number(a.totalPasses));
 
-            const sortedCsv = stringify(records, { header: true });
+            // Filter to keep only top 75% (remove bottom 25%)
+            const keepCount = Math.max(1, Math.floor(records.length * 0.75));
+            const filteredRecords = records.slice(0, keepCount);
+
+            const sortedCsv = stringify(filteredRecords, { header: true });
             fs.writeFile(filePath, sortedCsv, (err) => {
                 if (err) {
                     throw err;
                 }
-                console.log('CSV has been sorted and rewritten based on totalPasses.');
+                console.log(`CSV has been sorted and filtered. Kept ${keepCount} of ${records.length} records (top 75%).`);
             });
         });
     } catch (error) {
@@ -539,22 +573,8 @@ app.post('/api/processStoredTickers', async (req, res) => {
 
             console.log(`Processing batch ${file} with ${stocks.length} tickers...`);
 
-            // Process stocks in this batch
-            const stockDataPromises = stocks.map(async (stock) => {
-                const stockData = await fetchStockData(stock);
-                if (!stockData) return null;
-
-                const stockPrice = await fetchStockPrice(stock);
-                const totalShares = await fetchTotalShares(stock);
-
-                if (stockData) {
-                    stockData.stock_price = stockPrice;
-                    stockData.total_shares = totalShares;
-                }
-                return stockData;
-            });
-
-            const batchResults = (await Promise.all(stockDataPromises)).filter(data => data);
+            // Use shared processStocks function for this batch
+            const batchResults = await processStocks(stocks);
             allFetchedStockData.push(...batchResults);
             processedCount += stocks.length;
 
@@ -566,115 +586,8 @@ app.post('/api/processStoredTickers', async (req, res) => {
 
         console.log(`Total stocks data fetched: ${allFetchedStockData.length}`);
 
-        // Get beta data for all stocks
-        const allStocks = allFetchedStockData.map(data => data.stockTicker);
-        const betaData = await getStockBetas(allStocks);
-
-        // Add Beta values to stock data
-        allFetchedStockData.forEach(data => {
-            const betaInfo = betaData.find(beta => beta.Stock === data.stockTicker);
-            if (betaInfo) {
-                data.beta = betaInfo.Beta;
-            } else {
-                data.beta = null;
-            }
-        });
-
-        // Generate CSV (same logic as /api/processJSON)
-        let headers = new Set(["Ticker"]);
-
-        let calculatedHeaders = [
-            "stockPrice", "totalShares", "grossMargin", "netProfitMargin", "peRatio",
-            "priceToBookRatio", "debtToEquity", "marketCap", "currentRatio",
-            "cashAndCashEquivalents", "ROA", "returnOnEquity", "ROIC",
-            "researchAndDevelopment", "incomeTaxExpenses", "beta", "quickRatio",
-            "enterpriseValue", "enterpriseToRevenue", "sector", "industry",
-            "volume", "quoteType", "priceVolume", "earningsYield"
-        ];
-
-        allFetchedStockData.forEach(data => {
-            if (data && data.financials) {
-                Object.keys(data.financials).forEach(section => {
-                    Object.keys(data.financials[section]).forEach(key => {
-                        headers.add(key);
-                    });
-                });
-            }
-        });
-
-        let passFailHeaders = [
-            "grossMarginCheck1", "grossMarginCheck2", "netProfitMarginCheck1",
-            "netProfitMarginCheck2", "peTimesPriceToBookRatioCheck", "marketCapCheck",
-            "currentRatioCheck", "ROACheck", "returnOnEquityCheck", "ROICCheck",
-            "researchAndDevelopmentCheck", "incomeTaxExpensesCheck", "betaCheck",
-            "priceVolumeCheck", "earningsYieldCheck"
-        ];
-
-        let csvHeaders = Array.from(headers).concat(calculatedHeaders).concat(passFailHeaders).concat(['totalPasses']);
-        let csvContent = csvHeaders.join(',') + '\n';
-
-        // Process each stock's data
-        allFetchedStockData.forEach(data => {
-            if (data) {
-                let rowData = [data.stockTicker]
-
-                const revenues = data.financials?.income_statement?.revenues?.value || 0;
-
-                const financialMetrics = calculateFinancials(data.financials, data.stock_price, data.total_shares, data.beta, data.volume);
-
-                if (financialMetrics.peTimesPriceToBookRatio === 0) {
-                    return;
-                }
-
-                const enterpriseToRevenue = calculateEnterpriseValueToRevenue(
-                    financialMetrics.marketCap,
-                    financialMetrics.longTermDebt,
-                    financialMetrics.cashAndCashEquivalents,
-                    revenues
-                );
-
-                const enterpriseValue = financialMetrics.marketCap + financialMetrics.longTermDebt - financialMetrics.cashAndCashEquivalents;
-
-                csvHeaders.forEach(header => {
-                    if (header === 'Ticker') {
-                        // Already handled
-                    } else if (header === 'stockPrice') {
-                        rowData.push(data.stock_price !== undefined ? data.stock_price : 'N/A');
-                    } else if (header === 'totalShares') {
-                        rowData.push(data.total_shares !== undefined ? data.total_shares : 'N/A');
-                    } else if (header === 'beta') {
-                        rowData.push(data.beta !== undefined ? data.beta : 'N/A');
-                    } else if (header === 'cashAndCashEquivalents') {
-                        rowData.push(financialMetrics.cashAndCashEquivalents !== undefined ? financialMetrics.cashAndCashEquivalents : 'N/A');
-                    } else if (header === 'enterpriseValue') {
-                        rowData.push(enterpriseValue !== 'N/A' ? enterpriseValue : 'N/A');
-                    } else if (header === 'enterpriseToRevenue') {
-                        rowData.push(enterpriseToRevenue !== 'N/A' ? enterpriseToRevenue : 'N/A');
-                    } else if (header === 'quickRatio') {
-                        rowData.push(data.quickRatio !== undefined ? data.quickRatio : 'N/A');
-                    } else if (['sector', 'industry', 'volume', 'quoteType'].includes(header)) {
-                        rowData.push(data[header] !== undefined ? data[header] : 'N/A');
-                    } else if (financialMetrics[header] !== undefined) {
-                        rowData.push(financialMetrics[header]);
-                    } else if (passFailHeaders.includes(header)) {
-                        const checkResult = financialMetrics.passFailResults[header];
-                        rowData.push(checkResult !== undefined ? checkResult : 'N/A');
-                    } else {
-                        let value = 'N/A';
-                        ['balance_sheet', 'income_statement', 'cash_flow_statement', 'comprehensive_income'].forEach(section => {
-                            if (data.financials && data.financials[section] && data.financials[section][header]) {
-                                const fieldValue = data.financials[section][header].hasOwnProperty('value') ? data.financials[section][header].value : data.financials[section][header];
-                                if (fieldValue !== undefined) {
-                                    value = fieldValue;
-                                }
-                            }
-                        });
-                        rowData.push(value);
-                    }
-                });
-                csvContent += stringify([rowData], { quoted: true });
-            }
-        });
+        // Generate CSV using shared function
+        const csvContent = generateCSV(allFetchedStockData);
 
         const getOutputFilePath = (basePath, baseFileName) => {
             let counter = 1;
