@@ -126,8 +126,8 @@ const processStocks = async (stocks) => {
 
         if (stockData) {
             stockData.stock_price = stockPrice;
-            stockData.total_shares = tickerDetails.weighted_shares_outstanding;
-            stockData.total_employees = tickerDetails.total_employees;
+            stockData.total_shares = tickerDetails?.weighted_shares_outstanding ?? 'N/A';
+            stockData.total_employees = tickerDetails?.total_employees ?? 'N/A';
         }
         return stockData;
     });
@@ -263,6 +263,8 @@ const generateCSV = (fetchedStockData) => {
                     rowData.push(enterpriseToRevenue !== 'N/A' ? enterpriseToRevenue : 'N/A');
                 } else if (header === 'quickRatio') {
                     rowData.push(data.quickRatio !== undefined ? data.quickRatio : 'N/A');
+                } else if (header === 'profitPerEmployee') {
+                    rowData.push(financialMetrics.profitPerEmployee ?? 'N/A');
                 } else if (['sector', 'industry', 'volume', 'quoteType'].includes(header)) {
                     rowData.push(data[header] !== undefined ? data[header] : 'N/A');
                 } else if (financialMetrics[header] !== undefined) {
@@ -407,8 +409,10 @@ function calculateFinancials(financials, stockPrice, totalShares, beta, volume, 
     const researchAndDevelopment = (research_and_development / grossProfit) * 100;
     // this calculates the tax rate, however how to confirm they are paying their fair share?
     const incomeTaxExpenses = (income_tax_expense_benefit / income_loss_from_continuing_operations_before_tax) * 100;
-    const earningsYield = stockPrice > 0 && dilutedEarningsPerShare > 0 ? (dilutedEarningsPerShare / stockPrice) * 100 : 'N/A';
-    const profitPerEmployee = (totalEmployees > 0 && totalEmployees !== 'N/A' && netIncomeLoss !== undefined) ? netIncomeLoss / totalEmployees : 'N/A';
+    const earningsYield = stockPrice > 0 && dilutedEarningsPerShare > 0 ? (Math.atan((dilutedEarningsPerShare / stockPrice) * 100 / 10) / Math.PI) * 6 : 'N/A';
+    const profitPerEmployee = totalEmployees > 0 && typeof netIncomeLoss === 'number'
+        ? netIncomeLoss / totalEmployees
+        : 'N/A';
 
     // Pass/Fail checks
     const passFailResults = {
@@ -443,14 +447,9 @@ function calculateFinancials(financials, stockPrice, totalShares, beta, volume, 
                 return penaltyPoints;
             }
         })(),
-        profitPerEmployeeCheck: (() => {
-            if (profitPerEmployee === 'N/A' || typeof profitPerEmployee !== 'number') {
-                return 0;
-            }
-            // Scaled score: (atan(profitPerEmployee / 100000) / PI) * 6
-            // This rewards high values with diminishing returns, roughly -3 to +3
-            return (Math.atan(profitPerEmployee / 100000) / Math.PI) * 6;
-        })()
+        profitPerEmployeeCheck: typeof profitPerEmployee === 'number'
+            ? (Math.atan(profitPerEmployee / 100000) / Math.PI) * 6
+            : 0
         };
 
     const totalPasses = Object.values(passFailResults).reduce((sum, value) => sum + value, 0);
@@ -480,7 +479,7 @@ function calculateFinancials(financials, stockPrice, totalShares, beta, volume, 
         //capex,
         //capexMargin
         priceVolume,
-        earningsYield: earningsYield !== 'N/A' ? `${earningsYield.toFixed(2)}%` : 'N/A',
+        earningsYield,
         profitPerEmployee,
         passFailResults,
         totalPasses
